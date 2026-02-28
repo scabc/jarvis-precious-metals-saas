@@ -31,7 +31,9 @@ def send_gmail_notification(to_email, subject, body):
     message["From"] = f"Jarvis Monitor <{sender_email}>"
     message["To"] = to_email
     message["Subject"] = subject
-    message.attach(MIMEText(body, "plain"))
+    
+    # 采用 HTML 格式提升视觉效果
+    message.attach(MIMEText(body, "html"))
     
     try:
         server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=20)
