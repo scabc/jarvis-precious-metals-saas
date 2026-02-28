@@ -1,34 +1,39 @@
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import os
+import socket
 
 def send_gmail_notification(to_email, subject, body):
-    import socks
-    import socket
-    # 配置信息
-    sender_email = "troiamaribelcl57@gmail.com" 
-    app_password = "plqwxidwkwvqlfob"
+    # 优先从环境变量读取，如果没有则使用硬编码（本地测试用）
+    sender_email = os.environ.get("SENDER_EMAIL", "troiamaribelcl57@gmail.com")
+    app_password = os.environ.get("APP_PASSWORD", "plqwxidwkwvqlfob")
     
-    # 设置 SOCKS5 代理 (Clash/Cloudupup 默认通常支持 7897 的 socks)
-    socks.set_default_proxy(socks.SOCKS5, "127.0.0.1", 7897)
-    socket.socket = socks.socksocket
+    # 只有在本地环境（检测是否存在代理端口）时才启用 SOCKS5
+    # GitHub Actions 不需要代理即可访问 Gmail
+    is_github = os.environ.get("GITHUB_ACTIONS") == "true"
+    
+    if not is_github:
+        try:
+            import socks
+            # 测试本地 7897 端口是否开启（判断是否在本地运行）
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(1)
+                if s.connect_ex(("127.0.0.1", 7897)) == 0:
+                    socks.set_default_proxy(socks.SOCKS5, "127.0.0.1", 7897)
+                    socket.socket = socks.socksocket
+                    print("已启用本地 SOCKS5 代理")
+        except Exception:
+            print("未检测到本地代理，尝试直连...")
 
     # 创建邮件对象
     message = MIMEMultipart()
     message["From"] = f"Jarvis Monitor <{sender_email}>"
     message["To"] = to_email
     message["Subject"] = subject
-    
     message.attach(MIMEText(body, "plain"))
     
     try:
-        # 使用代理
-        import os
-        proxy = "http://127.0.0.1:7897"
-        os.environ["http_proxy"] = proxy
-        os.environ["https_proxy"] = proxy
-        
-        # Gmail SMTP 配置
         server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=20)
         server.login(sender_email, app_password)
         server.sendmail(sender_email, to_email, message.as_string())
@@ -39,8 +44,5 @@ def send_gmail_notification(to_email, subject, body):
         return False
 
 if __name__ == "__main__":
-    # 测试发送给 Lore 自己
-    test_subject = "Jarvis SaaS - 监控系统启动通知"
-    test_body = "报告 Lore，邮件通知系统已成功打通。当前正在为您监测各大行贵金属实时牌价。"
-    if send_gmail_notification("chenlong248@gmail.com", test_subject, test_body):
-        print("测试邮件已发出，请检查收件箱。")
+    # 本地测试
+    send_gmail_notification("troiamaribelcl57@gmail.com", "本地测试", "测试自适应通知系统")
