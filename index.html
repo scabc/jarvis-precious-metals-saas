@@ -53,8 +53,8 @@
                 <p class="text-sm text-gray-400">输入您的邮箱并选择关注的银行，我们将为您全天候守望市场。</p>
                 
                 <div class="flex flex-col sm:flex-row gap-2">
-                    <input type="email" placeholder="your@email.com" class="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500 transition">
-                    <button class="bg-amber-500 hover:bg-amber-600 text-black font-bold px-8 py-3 rounded-xl transition cursor-not-allowed opacity-50" title="功能开发中">立即订阅</button>
+                    <input type="email" id="email-input" placeholder="your@email.com" class="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500 transition">
+                    <button id="subscribe-btn" onclick="subscribe()" class="bg-amber-500 hover:bg-amber-600 text-black font-bold px-8 py-3 rounded-xl transition">立即订阅</button>
                 </div>
                 
                 <div class="flex flex-wrap justify-center gap-4 text-xs text-gray-500">
@@ -79,10 +79,47 @@
         &copy; 2026 Jarvis Precious Metal SaaS. Powered by OpenClaw & GitHub Actions.
     </footer>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
+        // Supabase 配置
+        const SUPABASE_URL = "https://xoatcihvsyeluiahctuz.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_qPoLPXTl5kxJM90zTIqYbA_2OJx3cPz"; 
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        async function subscribe() {
+            const emailInput = document.getElementById('email-input');
+            const email = emailInput.value;
+            const btn = document.getElementById('subscribe-btn');
+            
+            if (!email || !email.includes('@')) {
+                alert('请输入有效的邮箱地址！');
+                return;
+            }
+
+            btn.innerText = '正在订阅...';
+            btn.disabled = true;
+
+            const { data, error } = await _supabase
+                .from('subscriptions')
+                .insert([{ email: email, banks: ['中国银行', '工商银行'], threshold: 0.003 }])
+                .select();
+
+            if (error) {
+                if (error.code === '23505') {
+                    alert('该邮箱已在订阅列表中！');
+                } else {
+                    alert('订阅失败：' + error.message);
+                }
+            } else {
+                alert('🎉 订阅成功！您将开始接收波动预警。');
+                emailInput.value = '';
+            }
+            btn.innerText = '立即订阅';
+            btn.disabled = false;
+        }
+
         async function fetchPrices() {
             try {
-                // 直接抓取东方财富聚合行情 (由于是前端直连，通常不会被拦截)
                 const url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=20&po=1&np=1&ut=bd1d9ddb040897f3cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m:118,m:119,m:120,m:121&fields=f12,f14,f2,f3,f4";
                 const response = await fetch(url);
                 const result = await response.json();
