@@ -1,6 +1,7 @@
--- 1. 为订阅表增加用户关联字段
+-- 1. 为订阅表增加用户关联字段和品种字段
 alter table public.subscriptions 
-add column if_user_id uuid references auth.users(id);
+add column if_user_id uuid references auth.users(id),
+add column metals text[] default '{"黄金9999", "白银T+D"}';
 
 -- 2. 开启更严谨的安全策略：用户只能看到和修改自己的订阅
 alter table public.subscriptions enable row level security;

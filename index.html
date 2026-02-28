@@ -65,9 +65,9 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
                     <div class="space-y-4">
                         <p class="text-sm font-semibold text-gray-300">关注品种</p>
-                        <div class="flex flex-wrap gap-4 text-sm text-gray-400">
-                            <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked class="accent-amber-500"> <span>黄金 (Au9999)</span></label>
-                            <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked class="accent-amber-500"> <span>白银 (AgT+D)</span></label>
+                        <div id="metal-options" class="flex flex-wrap gap-4 text-sm text-gray-400">
+                            <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" value="黄金9999" checked class="accent-amber-500"> <span>黄金 (Au9999)</span></label>
+                            <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" value="白银T+D" checked class="accent-amber-500"> <span>白银 (AgT+D)</span></label>
                         </div>
                     </div>
                     <div class="space-y-4">
@@ -76,6 +76,16 @@
                             <input type="range" id="threshold-range" min="0.001" max="0.02" step="0.001" value="0.003" class="w-full accent-amber-500" oninput="document.getElementById('threshold-val').innerText = (this.value * 100).toFixed(1) + '%'">
                             <span id="threshold-val" class="text-amber-500 font-bold w-12 text-right">0.3%</span>
                         </div>
+                    </div>
+                </div>
+                <!-- 银行选择 -->
+                <div class="space-y-4 pt-4 border-t border-neutral-800">
+                    <p class="text-sm font-semibold text-gray-300">参考行情来源</p>
+                    <div id="bank-options" class="flex flex-wrap gap-6 text-xs text-gray-500">
+                        <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" value="中国工商银行" checked class="accent-amber-500"> <span>工商银行</span></label>
+                        <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" value="中国银行" checked class="accent-amber-500"> <span>中国银行</span></label>
+                        <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" value="招商银行" checked class="accent-amber-500"> <span>招商银行</span></label>
+                        <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" value="建设银行" class="accent-amber-500"> <span>建设银行</span></label>
                     </div>
                 </div>
             </div>
@@ -146,6 +156,10 @@
             const threshold = document.getElementById('threshold-range').value;
             const btn = document.getElementById('update-btn');
             
+            // 获取选中的银行和品种
+            const selectedBanks = Array.from(document.querySelectorAll('#bank-options input:checked')).map(el => el.value);
+            const selectedMetals = Array.from(document.querySelectorAll('#metal-options input:checked')).map(el => el.value);
+            
             btn.innerText = '正在保存...';
             btn.disabled = true;
 
@@ -153,7 +167,8 @@
                 email: user.email,
                 threshold: parseFloat(threshold),
                 if_user_id: user.id,
-                banks: ['中国银行', '工商银行'] # 暂定
+                banks: selectedBanks,
+                metals: selectedMetals # 待数据库增加此列
             }, { onConflict: 'email' });
 
             if (error) {
