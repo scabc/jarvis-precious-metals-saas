@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jarvis | 贵金属智能监控 SaaS</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0a0a0a; color: #ededed; }
+        .glass-card { background: rgba(23, 23, 23, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .gold-gradient { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4 sm:p-8">
+    <!-- Header -->
+    <header class="w-full max-w-5xl flex justify-between items-center mb-12">
+        <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center font-bold text-black">J</div>
+            <h1 class="text-xl font-bold tracking-tight">Jarvis <span class="text-amber-500">Precious</span></h1>
+        </div>
+        <nav class="hidden sm:flex space-x-6 text-sm text-gray-400">
+            <a href="#" class="hover:text-white transition">实时行情</a>
+            <a href="#" class="hover:text-white transition">预警规则</a>
+            <a href="#" class="hover:text-white transition">关于我们</a>
+        </nav>
+    </header>
+
+    <main class="w-full max-w-5xl space-y-8">
+        <!-- Hero Section -->
+        <section class="text-center space-y-4 py-8">
+            <h2 class="text-4xl sm:text-6xl font-extrabold tracking-tighter">
+                监控每一分 <span class="gold-gradient">波动</span>
+            </h2>
+            <p class="text-gray-400 max-w-2xl mx-auto">
+                聚合国内主流银行实时牌价，分钟级云端自动扫描。一旦触发波动阈值，立即通过邮件精准触达，不错过任何交易机会。
+            </p>
+        </section>
+
+        <!-- Live Prices Grid -->
+        <div id="price-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Skeleton Loading -->
+            <div class="glass-card p-6 rounded-2xl animate-pulse h-32"></div>
+            <div class="glass-card p-6 rounded-2xl animate-pulse h-32"></div>
+            <div class="glass-card p-6 rounded-2xl animate-pulse h-32"></div>
+            <div class="glass-card p-6 rounded-2xl animate-pulse h-32"></div>
+        </div>
+
+        <!-- Subscription Section -->
+        <section class="glass-card p-8 rounded-3xl mt-12">
+            <div class="max-w-xl mx-auto space-y-6 text-center">
+                <h3 class="text-2xl font-bold text-white">开启智能订阅</h3>
+                <p class="text-sm text-gray-400">输入您的邮箱并选择关注的银行，我们将为您全天候守望市场。</p>
+                
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <input type="email" placeholder="your@email.com" class="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500 transition">
+                    <button class="bg-amber-500 hover:bg-amber-600 text-black font-bold px-8 py-3 rounded-xl transition cursor-not-allowed opacity-50" title="功能开发中">立即订阅</button>
+                </div>
+                
+                <div class="flex flex-wrap justify-center gap-4 text-xs text-gray-500">
+                    <label class="flex items-center space-x-1 cursor-pointer hover:text-gray-300">
+                        <input type="checkbox" checked class="accent-amber-500"> <span>中国工商银行</span>
+                    </label>
+                    <label class="flex items-center space-x-1 cursor-pointer hover:text-gray-300">
+                        <input type="checkbox" checked class="accent-amber-500"> <span>中国银行</span>
+                    </label>
+                    <label class="flex items-center space-x-1 cursor-pointer hover:text-gray-300">
+                        <input type="checkbox" checked class="accent-amber-500"> <span>招商银行</span>
+                    </label>
+                    <label class="flex items-center space-x-1 cursor-pointer hover:text-gray-300">
+                        <input type="checkbox" class="accent-amber-500"> <span>建行/农行</span>
+                    </label>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="mt-20 py-8 text-gray-600 text-xs">
+        &copy; 2026 Jarvis Precious Metal SaaS. Powered by OpenClaw & GitHub Actions.
+    </footer>
+
+    <script>
+        async function fetchPrices() {
+            try {
+                // 直接抓取东方财富聚合行情 (由于是前端直连，通常不会被拦截)
+                const url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=20&po=1&np=1&ut=bd1d9ddb040897f3cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m:118,m:119,m:120,m:121&fields=f12,f14,f2,f3,f4";
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                if (result.rc === 0) {
+                    const targets = ["AU9999", "AGTD", "黄金9999", "白银T+D"];
+                    const filtered = result.data.diff.filter(item => targets.includes(item.f14) || targets.includes(item.f12));
+                    renderPrices(filtered);
+                }
+            } catch (error) {
+                console.error("Fetch failed:", error);
+            }
+        }
+
+        function renderPrices(data) {
+            const container = document.getElementById('price-grid');
+            container.innerHTML = '';
+            
+            data.forEach(item => {
+                const isPositive = parseFloat(item.f3) >= 0;
+                const card = `
+                    <div class="glass-card p-6 rounded-2xl hover:border-amber-500/50 transition cursor-default">
+                        <div class="text-xs text-gray-500 mb-2">${item.f14}</div>
+                        <div class="flex justify-between items-end">
+                            <div class="text-2xl font-bold text-white">${item.f2}</div>
+                            <div class="text-sm ${isPositive ? 'text-green-400' : 'text-red-400'} font-semibold">
+                                ${isPositive ? '+' : ''}${item.f3}%
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', card);
+            });
+        }
+
+        // 初始加载并每分钟刷新一次
+        fetchPrices();
+        setInterval(fetchPrices, 60000);
+    </script>
+</body>
+</html>
