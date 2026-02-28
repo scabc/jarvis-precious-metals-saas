@@ -12,205 +12,188 @@
         .glass-card { background: rgba(23, 23, 23, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
         .gold-gradient { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .hidden { display: none; }
+        .pro-badge { background: linear-gradient(90deg, #f59e0b, #fbbf24); color: #000; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center p-4 sm:p-8">
-    <!-- Header -->
     <header class="w-full max-w-5xl flex justify-between items-center mb-12">
         <div class="flex items-center space-x-2">
             <div class="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center font-bold text-black text-sm">J</div>
             <h1 class="text-xl font-bold tracking-tight">Jarvis <span class="text-amber-500">Precious</span></h1>
         </div>
-        <div id="auth-status" class="flex items-center space-x-4">
-            <!-- 动态加载登录状态 -->
-        </div>
+        <div id="auth-status" class="flex items-center space-x-4"></div>
     </header>
 
     <main class="w-full max-w-5xl space-y-8">
-        <!-- 未登录状态展示 -->
         <section id="guest-hero" class="text-center space-y-8 py-16">
-            <h2 class="text-5xl sm:text-7xl font-extrabold tracking-tighter">
-                监控每一分 <span class="gold-gradient">波动</span>
-            </h2>
-            <p class="text-gray-400 max-w-2xl mx-auto text-lg">
-                聚合国内主流银行实时牌价，分钟级云端自动扫描。一旦触发波动阈值，立即通过邮件精准触达，不错过任何交易机会。
-            </p>
-            <div class="flex justify-center gap-4">
-                <input type="email" id="login-email" placeholder="输入邮箱开始体验..." class="bg-neutral-900 border border-neutral-800 rounded-xl px-6 py-4 w-72 focus:outline-none focus:border-amber-500 transition">
-                <button onclick="login()" id="login-btn" class="bg-amber-500 hover:bg-amber-600 text-black font-bold px-8 py-4 rounded-xl transition shadow-lg shadow-amber-500/20">免费注册 / 登录</button>
+            <h2 class="text-5xl sm:text-7xl font-extrabold tracking-tighter">监控每一分 <span class="gold-gradient">波动</span></h2>
+            <p class="text-gray-400 max-w-2xl mx-auto text-lg">聚合国内主流银行实时牌价，分钟级云端自动扫描。一旦触发波动阈值，立即通过邮件精准触达。</p>
+            <div class="flex flex-col sm:flex-row justify-center items-center gap-4">
+                <input type="email" id="login-email" placeholder="您的邮箱地址" class="bg-neutral-900 border border-neutral-800 rounded-xl px-6 py-4 w-full sm:w-80 focus:outline-none focus:border-amber-500 transition">
+                <button onclick="login()" id="login-btn" class="bg-amber-500 hover:bg-amber-600 text-black font-bold px-8 py-4 rounded-xl transition w-full sm:w-auto">免费注册 / 登录</button>
             </div>
-            <p class="text-xs text-gray-500">无密码登录：我们将向您的邮箱发送一个魔术链接 (Magic Link)</p>
+            <p class="text-xs text-gray-500 italic">登录即代表同意服务条款。无密码登录，安全便捷。</p>
         </section>
 
-        <!-- 已登录状态展示 (Dashboard) -->
         <section id="user-dashboard" class="hidden space-y-8">
-            <div class="flex justify-between items-end">
+            <div class="flex justify-between items-center">
                 <h3 class="text-2xl font-bold">实时行情看板</h3>
-                <span class="text-xs text-gray-500">数据每 60s 自动刷新一次</span>
+                <div id="plan-badge" class="px-3 py-1 bg-neutral-900 border border-neutral-800 rounded-full text-xs text-gray-400 uppercase tracking-widest">Plan: Free</div>
             </div>
-            <div id="price-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <!-- 行情卡片 -->
-            </div>
+            <div id="price-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"></div>
 
-            <!-- 订阅管理 -->
-            <div class="glass-card p-8 rounded-3xl mt-12 space-y-6">
-                <div class="flex justify-between items-center">
+            <div class="glass-card p-8 rounded-3xl mt-12 space-y-8">
+                <div class="flex justify-between items-center border-b border-neutral-800 pb-6">
                     <div>
                         <h4 class="text-xl font-bold text-white">监控策略设置</h4>
-                        <p class="text-sm text-gray-400 mt-1">定制您的专属预警规则</p>
+                        <p class="text-sm text-gray-400">定制您的专属预警规则</p>
                     </div>
-                    <button onclick="updateSubscription()" id="update-btn" class="bg-amber-500 hover:bg-amber-600 text-black font-bold px-6 py-2 rounded-lg text-sm transition">保存设置</button>
+                    <div class="flex space-x-3">
+                        <button id="upgrade-btn" onclick="showPayModal()" class="bg-white hover:bg-gray-200 text-black font-bold px-6 py-2 rounded-lg text-sm transition hidden">升级 PRO</button>
+                        <button onclick="updateSubscription()" id="update-btn" class="bg-amber-500 hover:bg-amber-600 text-black font-bold px-6 py-2 rounded-lg text-sm transition">保存设置</button>
+                    </div>
                 </div>
                 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
-                    <div class="space-y-4">
-                        <p class="text-sm font-semibold text-gray-300">关注品种</p>
-                        <div id="metal-options" class="flex flex-wrap gap-4 text-sm text-gray-400">
-                            <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" value="黄金9999" checked class="accent-amber-500"> <span>黄金 (Au9999)</span></label>
-                            <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" value="白银T+D" checked class="accent-amber-500"> <span>白银 (AgT+D)</span></label>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+                    <div class="space-y-6">
+                        <div class="space-y-3">
+                            <p class="text-sm font-semibold text-gray-300">关注品种</p>
+                            <div id="metal-options" class="flex flex-wrap gap-6 text-sm text-gray-400">
+                                <label class="flex items-center space-x-2"><input type="checkbox" value="黄金9999" checked class="accent-amber-500"> <span>黄金</span></label>
+                                <label class="flex items-center space-x-2"><input type="checkbox" value="白银T+D" checked class="accent-amber-500"> <span>白银</span></label>
+                                <label class="flex items-center space-x-2 opacity-50"><input type="checkbox" disabled class="accent-amber-500"> <span>铂金 <span class="pro-badge">PRO</span></span></label>
+                            </div>
+                        </div>
+                        <div class="space-y-3">
+                            <p class="text-sm font-semibold text-gray-300">参考行情来源</p>
+                            <div id="bank-options" class="flex flex-wrap gap-6 text-xs text-gray-500">
+                                <label class="flex items-center space-x-2"><input type="checkbox" value="中国银行" checked class="accent-amber-500"> <span>中国银行</span></label>
+                                <label class="flex items-center space-x-2"><input type="checkbox" value="工商银行" checked class="accent-amber-500"> <span>工商银行</span></label>
+                                <label class="flex items-center space-x-2 opacity-50"><input type="checkbox" disabled class="accent-amber-500"> <span>招商银行 <span class="pro-badge">PRO</span></span></label>
+                            </div>
                         </div>
                     </div>
-                    <div class="space-y-4">
-                        <p class="text-sm font-semibold text-gray-300">预警波动阈值</p>
-                        <div class="flex items-center space-x-4">
-                            <input type="range" id="threshold-range" min="0.001" max="0.02" step="0.001" value="0.003" class="w-full accent-amber-500" oninput="document.getElementById('threshold-val').innerText = (this.value * 100).toFixed(1) + '%'">
-                            <span id="threshold-val" class="text-amber-500 font-bold w-12 text-right">0.3%</span>
+                    <div class="space-y-6">
+                        <div class="space-y-3">
+                            <div class="flex justify-between">
+                                <p class="text-sm font-semibold text-gray-300">预警波动阈值</p>
+                                <span id="threshold-val" class="text-amber-500 font-bold text-sm">0.3%</span>
+                            </div>
+                            <input type="range" id="threshold-range" min="0.001" max="0.01" step="0.001" value="0.003" class="w-full accent-amber-500" oninput="document.getElementById('threshold-val').innerText = (this.value * 100).toFixed(1) + '%'">
+                            <p class="text-[10px] text-gray-600">Free 版最低支持 0.3%，Pro 版支持 0.1% 高频监控</p>
                         </div>
-                    </div>
-                </div>
-                <!-- 银行选择 -->
-                <div class="space-y-4 pt-4 border-t border-neutral-800">
-                    <p class="text-sm font-semibold text-gray-300">参考行情来源</p>
-                    <div id="bank-options" class="flex flex-wrap gap-6 text-xs text-gray-500">
-                        <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" value="中国工商银行" checked class="accent-amber-500"> <span>工商银行</span></label>
-                        <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" value="中国银行" checked class="accent-amber-500"> <span>中国银行</span></label>
-                        <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" value="招商银行" checked class="accent-amber-500"> <span>招商银行</span></label>
-                        <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" value="建设银行" class="accent-amber-500"> <span>建设银行</span></label>
                     </div>
                 </div>
             </div>
         </section>
     </main>
 
-    <footer class="mt-20 py-12 text-gray-700 text-xs border-t border-neutral-900 w-full max-w-5xl text-center">
-        &copy; 2026 Jarvis Precious Metal SaaS. Securely powered by Supabase Auth & GitHub Actions.
-    </footer>
+    <div id="pay-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="glass-card max-w-md w-full p-8 rounded-3xl text-center space-y-6 relative">
+            <button onclick="hidePayModal()" class="absolute top-4 right-4 text-gray-500">✕</button>
+            <h3 class="text-2xl font-bold gold-gradient">升级 Jarvis PRO</h3>
+            <p class="text-sm text-gray-400 px-4">解锁铂金/钯金监控、0.1% 极速预警、多银行深度对比及优先邮件推送。</p>
+            <div class="py-4 space-y-2">
+                <div class="text-4xl font-black">¥9.9 <span class="text-sm font-normal text-gray-500">/ 月</span></div>
+                <div class="text-xs text-amber-500">首月特惠，限时开启</div>
+            </div>
+            <div class="bg-white p-4 rounded-2xl inline-block mx-auto mb-4">
+                <div class="w-48 h-48 bg-gray-200 flex items-center justify-center text-black text-xs font-bold">[此处替换为您的收款码]</div>
+            </div>
+            <p class="text-[10px] text-gray-500 italic">扫码支付后请联系客服开通（预计 5 分钟内生效）</p>
+            <button onclick="hidePayModal()" class="w-full py-3 border border-neutral-800 rounded-xl text-sm font-bold hover:bg-neutral-900 transition">稍后再说</button>
+        </div>
+    </div>
 
     <script>
-        // Supabase 配置
         const SUPABASE_URL = "https://xoatcihvsyeluiahctuz.supabase.co";
-        const SUPABASE_ANON_KEY = "sb_publishable_qPoLPXTl5kxJM90zTIqYbA_2OJx3cPz"; 
+        const SUPABASE_ANON_KEY = "sb_publishable_qPoLPXTl5kxJM90zTIqYbA_2OJx3cPz";
         const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // 状态检查
         async function checkUser() {
             const { data: { user } } = await _supabase.auth.getUser();
             const authStatus = document.getElementById('auth-status');
             const guestHero = document.getElementById('guest-hero');
             const userDashboard = document.getElementById('user-dashboard');
-
             if (user) {
-                authStatus.innerHTML = `
-                    <span class="text-xs text-gray-400">${user.email}</span>
-                    <button onclick="logout()" class="text-xs text-red-500 hover:text-red-400 underline transition">退出登录</button>
-                `;
+                authStatus.innerHTML = `<span class="text-xs text-gray-500">${user.email}</span><button onclick="logout()" class="text-xs text-red-500 underline ml-4">Logout</button>`;
                 guestHero.classList.add('hidden');
                 userDashboard.classList.remove('hidden');
+                loadUserData(user);
                 fetchPrices();
             } else {
-                authStatus.innerHTML = `<button onclick="document.getElementById('login-email').focus()" class="text-sm text-gray-400 hover:text-white transition">登录 / 注册</button>`;
                 guestHero.classList.remove('hidden');
                 userDashboard.classList.add('hidden');
             }
         }
 
-        async function login() {
-            const email = document.getElementById('login-email').value;
-            if (!email) { alert('请输入邮箱！'); return; }
-            const btn = document.getElementById('login-btn');
-            btn.innerText = '正在发送邮件...';
-            btn.disabled = true;
-
-            const { error } = await _supabase.auth.signInWithOtp({
-                email: email,
-                options: { emailRedirectTo: window.location.href }
-            });
-
-            if (error) {
-                alert('登录失败：' + error.message);
-                btn.innerText = '免费注册 / 登录';
-                btn.disabled = false;
-            } else {
-                alert('🚀 邮件已发送！请查收您的收件箱并点击登录链接。');
-                btn.innerText = '请查看您的邮件';
+        async function loadUserData(user) {
+            const { data } = await _supabase.from('subscriptions').select('*').eq('if_user_id', user.id).single();
+            if (data) {
+                document.getElementById('threshold-range').value = data.threshold;
+                document.getElementById('threshold-val').innerText = (data.threshold * 100).toFixed(1) + '%';
+                if (data.plan === 'PRO') {
+                    document.getElementById('plan-badge').innerHTML = '<span class="pro-badge">Pro Plan</span>';
+                    document.getElementById('upgrade-btn').classList.add('hidden');
+                } else {
+                    document.getElementById('upgrade-btn').classList.remove('hidden');
+                }
             }
         }
 
-        async function logout() {
-            await _supabase.auth.signOut();
-            window.location.reload();
+        async function login() {
+            const email = document.getElementById('login-email').value;
+            if (!email) return alert('Email required');
+            const btn = document.getElementById('login-btn');
+            btn.innerText = 'Sending...'; btn.disabled = true;
+            const { error } = await _supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } });
+            if (error) { alert(error.message); btn.innerText = 'Try Again'; btn.disabled = false; }
+            else alert('Check your inbox for login link!');
         }
+
+        function logout() { _supabase.auth.signOut(); window.location.reload(); }
+        function showPayModal() { document.getElementById('pay-modal').style.display = 'flex'; }
+        function hidePayModal() { document.getElementById('pay-modal').style.display = 'none'; }
 
         async function updateSubscription() {
             const { data: { user } } = await _supabase.auth.getUser();
             const threshold = document.getElementById('threshold-range').value;
             const btn = document.getElementById('update-btn');
-            
-            // 获取选中的银行和品种
             const selectedBanks = Array.from(document.querySelectorAll('#bank-options input:checked')).map(el => el.value);
             const selectedMetals = Array.from(document.querySelectorAll('#metal-options input:checked')).map(el => el.value);
-            
-            btn.innerText = '正在保存...';
-            btn.disabled = true;
-
+            btn.innerText = 'Saving...'; btn.disabled = true;
             const { error } = await _supabase.from('subscriptions').upsert({
-                email: user.email,
-                threshold: parseFloat(threshold),
-                if_user_id: user.id,
-                banks: selectedBanks,
-                metals: selectedMetals # 待数据库增加此列
+                email: user.email, threshold: parseFloat(threshold), if_user_id: user.id, banks: selectedBanks, metals: selectedMetals
             }, { onConflict: 'email' });
-
-            if (error) {
-                alert('更新失败：' + error.message);
-            } else {
-                alert('✅ 设置已保存！Jarvis 将按新规则为您监控市场。');
-            }
-            btn.innerText = '保存设置';
-            btn.disabled = false;
+            if (error) alert(error.message); else alert('Settings updated!');
+            btn.innerText = 'Save Settings'; btn.disabled = false;
         }
 
         async function fetchPrices() {
             try {
-                const url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=20&po=1&np=1&ut=bd1d9ddb040897f3cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m:118,m:119,m:120,m:121&fields=f12,f14,f2,f3,f4";
-                const response = await fetch(url);
-                const result = await response.json();
-                if (result.rc === 0) {
+                const response = await fetch("https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=20&po=1&np=1&ut=bd1d9ddb040897f3cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m:118,m:119,m:120,m:121&fields=f12,f14,f2,f3");
+                const res = await response.json();
+                if (res.rc === 0) {
                     const targets = ["AU9999", "AGTD", "黄金9999", "白银T+D"];
-                    renderPrices(result.data.diff.filter(item => targets.includes(item.f14) || targets.includes(item.f12)));
+                    renderPrices(res.data.diff.filter(i => targets.includes(i.f14) || targets.includes(i.f12)));
                 }
             } catch (e) {}
         }
 
         function renderPrices(data) {
-            const container = document.getElementById('price-grid');
-            container.innerHTML = '';
+            const container = document.getElementById('price-grid'); container.innerHTML = '';
             data.forEach(item => {
                 const isPos = parseFloat(item.f3) >= 0;
                 container.insertAdjacentHTML('beforeend', `
-                    <div class="glass-card p-6 rounded-2xl hover:border-amber-500/50 transition cursor-default">
-                        <div class="text-xs text-gray-500 mb-2">${item.f14}</div>
-                        <div class="flex justify-between items-end">
-                            <div class="text-2xl font-bold text-white">${item.f2}</div>
-                            <div class="text-sm ${isPos ? 'text-green-400' : 'text-red-400'} font-semibold">${isPos?'+':''}${item.f3}%</div>
-                        </div>
+                    <div class="glass-card p-6 rounded-2xl">
+                        <div class="text-[10px] text-gray-500 mb-1 uppercase tracking-wider">${item.f14}</div>
+                        <div class="flex justify-between items-end"><div class="text-xl font-bold">${item.f2}</div>
+                        <div class="text-xs ${isPos ? 'text-green-500' : 'text-red-500'} font-bold">${isPos?'+':''}${item.f3}%</div></div>
                     </div>
                 `);
             });
         }
-
         checkUser();
-        setInterval(() => { if (!document.getElementById('user-dashboard').classList.contains('hidden')) fetchPrices(); }, 60000);
     </script>
 </body>
 </html>
