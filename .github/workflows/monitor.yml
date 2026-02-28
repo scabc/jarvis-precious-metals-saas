@@ -1,0 +1,54 @@
+name: Jarvis Precious Metal Monitor
+
+on:
+  schedule:
+    - cron: '*/15 * * * *' # 每 15 分钟运行一次 (GitHub 限制最快约 5-15 分钟)
+  workflow_dispatch:      # 支持手动触发
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4 PySocks
+
+      - name: Run Monitor Task
+        env:
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+          TARGET_EMAIL: ${{ secrets.TARGET_EMAIL }}
+        run: |
+          # 临时修改脚本以适配环境变量
+          python3 -c "
+          import os, sys
+          # 修改 notifier.py 使用环境变量
+          with open('notifier.py', 'r') as f:
+              content = f.read()
+          content = content.replace('sender_email = \"troiamaribelcl57@gmail.com\"', 'sender_email = os.environ[\"SENDER_EMAIL\"]')
+          content = content.replace('app_password = \"plqwxidwkwvqlfob\"', 'app_password = os.environ[\"APP_PASSWORD\"]')
+          # 针对 GitHub 环境禁用代理 (GitHub Actions 节点通常可以直接访问 Google)
+          content = content.replace('socks.set_default_proxy', '# socks.set_default_proxy')
+          content = content.replace('socket.socket = socks.socksocket', '# socket.socket = socks.socksocket')
+          with open('notifier_gh.py', 'w') as f:
+              f.write(content)
+          
+          # 执行一次监控任务
+          from data_engine import get_aggregated_data
+          from notifier_gh import send_gmail_notification
+          data = get_aggregated_data()
+          if data:
+              # 这里简化逻辑，Action 运行时发送当前快报
+              body = 'Jarvis 自动巡检报告：\n'
+              for item in data:
+                  body += f'{item[\"f14\"]}: {item[\"f2\"]}\n'
+              send_gmail_notification(os.environ[\"TARGET_EMAIL\"], 'Jarvis 自动巡检快报', body)
+          "
