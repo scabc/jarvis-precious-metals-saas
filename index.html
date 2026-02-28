@@ -5,116 +5,163 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jarvis | 贵金属智能监控 SaaS</title>
     <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #0a0a0a; color: #ededed; }
         .glass-card { background: rgba(23, 23, 23, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
         .gold-gradient { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hidden { display: none; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center p-4 sm:p-8">
     <!-- Header -->
     <header class="w-full max-w-5xl flex justify-between items-center mb-12">
         <div class="flex items-center space-x-2">
-            <div class="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center font-bold text-black">J</div>
+            <div class="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center font-bold text-black text-sm">J</div>
             <h1 class="text-xl font-bold tracking-tight">Jarvis <span class="text-amber-500">Precious</span></h1>
         </div>
-        <nav class="hidden sm:flex space-x-6 text-sm text-gray-400">
-            <a href="#" class="hover:text-white transition">实时行情</a>
-            <a href="#" class="hover:text-white transition">预警规则</a>
-            <a href="#" class="hover:text-white transition">关于我们</a>
-        </nav>
+        <div id="auth-status" class="flex items-center space-x-4">
+            <!-- 动态加载登录状态 -->
+        </div>
     </header>
 
     <main class="w-full max-w-5xl space-y-8">
-        <!-- Hero Section -->
-        <section class="text-center space-y-4 py-8">
-            <h2 class="text-4xl sm:text-6xl font-extrabold tracking-tighter">
+        <!-- 未登录状态展示 -->
+        <section id="guest-hero" class="text-center space-y-8 py-16">
+            <h2 class="text-5xl sm:text-7xl font-extrabold tracking-tighter">
                 监控每一分 <span class="gold-gradient">波动</span>
             </h2>
-            <p class="text-gray-400 max-w-2xl mx-auto">
+            <p class="text-gray-400 max-w-2xl mx-auto text-lg">
                 聚合国内主流银行实时牌价，分钟级云端自动扫描。一旦触发波动阈值，立即通过邮件精准触达，不错过任何交易机会。
             </p>
+            <div class="flex justify-center gap-4">
+                <input type="email" id="login-email" placeholder="输入邮箱开始体验..." class="bg-neutral-900 border border-neutral-800 rounded-xl px-6 py-4 w-72 focus:outline-none focus:border-amber-500 transition">
+                <button onclick="login()" id="login-btn" class="bg-amber-500 hover:bg-amber-600 text-black font-bold px-8 py-4 rounded-xl transition shadow-lg shadow-amber-500/20">免费注册 / 登录</button>
+            </div>
+            <p class="text-xs text-gray-500">无密码登录：我们将向您的邮箱发送一个魔术链接 (Magic Link)</p>
         </section>
 
-        <!-- Live Prices Grid -->
-        <div id="price-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <!-- Skeleton Loading -->
-            <div class="glass-card p-6 rounded-2xl animate-pulse h-32"></div>
-            <div class="glass-card p-6 rounded-2xl animate-pulse h-32"></div>
-            <div class="glass-card p-6 rounded-2xl animate-pulse h-32"></div>
-            <div class="glass-card p-6 rounded-2xl animate-pulse h-32"></div>
-        </div>
+        <!-- 已登录状态展示 (Dashboard) -->
+        <section id="user-dashboard" class="hidden space-y-8">
+            <div class="flex justify-between items-end">
+                <h3 class="text-2xl font-bold">实时行情看板</h3>
+                <span class="text-xs text-gray-500">数据每 60s 自动刷新一次</span>
+            </div>
+            <div id="price-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- 行情卡片 -->
+            </div>
 
-        <!-- Subscription Section -->
-        <section class="glass-card p-8 rounded-3xl mt-12">
-            <div class="max-w-xl mx-auto space-y-6 text-center">
-                <h3 class="text-2xl font-bold text-white">开启智能订阅</h3>
-                <p class="text-sm text-gray-400">输入您的邮箱并选择关注的银行，我们将为您全天候守望市场。</p>
-                
-                <div class="flex flex-col sm:flex-row gap-2">
-                    <input type="email" id="email-input" placeholder="your@email.com" class="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500 transition">
-                    <button id="subscribe-btn" onclick="subscribe()" class="bg-amber-500 hover:bg-amber-600 text-black font-bold px-8 py-3 rounded-xl transition">立即订阅</button>
+            <!-- 订阅管理 -->
+            <div class="glass-card p-8 rounded-3xl mt-12 space-y-6">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h4 class="text-xl font-bold text-white">监控策略设置</h4>
+                        <p class="text-sm text-gray-400 mt-1">定制您的专属预警规则</p>
+                    </div>
+                    <button onclick="updateSubscription()" id="update-btn" class="bg-amber-500 hover:bg-amber-600 text-black font-bold px-6 py-2 rounded-lg text-sm transition">保存设置</button>
                 </div>
                 
-                <div class="flex flex-wrap justify-center gap-4 text-xs text-gray-500">
-                    <label class="flex items-center space-x-1 cursor-pointer hover:text-gray-300">
-                        <input type="checkbox" checked class="accent-amber-500"> <span>中国工商银行</span>
-                    </label>
-                    <label class="flex items-center space-x-1 cursor-pointer hover:text-gray-300">
-                        <input type="checkbox" checked class="accent-amber-500"> <span>中国银行</span>
-                    </label>
-                    <label class="flex items-center space-x-1 cursor-pointer hover:text-gray-300">
-                        <input type="checkbox" checked class="accent-amber-500"> <span>招商银行</span>
-                    </label>
-                    <label class="flex items-center space-x-1 cursor-pointer hover:text-gray-300">
-                        <input type="checkbox" class="accent-amber-500"> <span>建行/农行</span>
-                    </label>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
+                    <div class="space-y-4">
+                        <p class="text-sm font-semibold text-gray-300">关注品种</p>
+                        <div class="flex flex-wrap gap-4 text-sm text-gray-400">
+                            <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked class="accent-amber-500"> <span>黄金 (Au9999)</span></label>
+                            <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked class="accent-amber-500"> <span>白银 (AgT+D)</span></label>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <p class="text-sm font-semibold text-gray-300">预警波动阈值</p>
+                        <div class="flex items-center space-x-4">
+                            <input type="range" id="threshold-range" min="0.001" max="0.02" step="0.001" value="0.003" class="w-full accent-amber-500" oninput="document.getElementById('threshold-val').innerText = (this.value * 100).toFixed(1) + '%'">
+                            <span id="threshold-val" class="text-amber-500 font-bold w-12 text-right">0.3%</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
     </main>
 
-    <footer class="mt-20 py-8 text-gray-600 text-xs">
-        &copy; 2026 Jarvis Precious Metal SaaS. Powered by OpenClaw & GitHub Actions.
+    <footer class="mt-20 py-12 text-gray-700 text-xs border-t border-neutral-900 w-full max-w-5xl text-center">
+        &copy; 2026 Jarvis Precious Metal SaaS. Securely powered by Supabase Auth & GitHub Actions.
     </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         // Supabase 配置
         const SUPABASE_URL = "https://xoatcihvsyeluiahctuz.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_qPoLPXTl5kxJM90zTIqYbA_2OJx3cPz"; 
         const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        async function subscribe() {
-            const emailInput = document.getElementById('email-input');
-            const email = emailInput.value;
-            const btn = document.getElementById('subscribe-btn');
-            
-            if (!email || !email.includes('@')) {
-                alert('请输入有效的邮箱地址！');
-                return;
-            }
+        // 状态检查
+        async function checkUser() {
+            const { data: { user } } = await _supabase.auth.getUser();
+            const authStatus = document.getElementById('auth-status');
+            const guestHero = document.getElementById('guest-hero');
+            const userDashboard = document.getElementById('user-dashboard');
 
-            btn.innerText = '正在订阅...';
+            if (user) {
+                authStatus.innerHTML = `
+                    <span class="text-xs text-gray-400">${user.email}</span>
+                    <button onclick="logout()" class="text-xs text-red-500 hover:text-red-400 underline transition">退出登录</button>
+                `;
+                guestHero.classList.add('hidden');
+                userDashboard.classList.remove('hidden');
+                fetchPrices();
+            } else {
+                authStatus.innerHTML = `<button onclick="document.getElementById('login-email').focus()" class="text-sm text-gray-400 hover:text-white transition">登录 / 注册</button>`;
+                guestHero.classList.remove('hidden');
+                userDashboard.classList.add('hidden');
+            }
+        }
+
+        async function login() {
+            const email = document.getElementById('login-email').value;
+            if (!email) { alert('请输入邮箱！'); return; }
+            const btn = document.getElementById('login-btn');
+            btn.innerText = '正在发送邮件...';
             btn.disabled = true;
 
-            const { data, error } = await _supabase
-                .from('subscriptions')
-                .insert([{ email: email, banks: ['中国银行', '工商银行'], threshold: 0.003 }])
-                .select();
+            const { error } = await _supabase.auth.signInWithOtp({
+                email: email,
+                options: { emailRedirectTo: window.location.href }
+            });
 
             if (error) {
-                if (error.code === '23505') {
-                    alert('该邮箱已在订阅列表中！');
-                } else {
-                    alert('订阅失败：' + error.message);
-                }
+                alert('登录失败：' + error.message);
+                btn.innerText = '免费注册 / 登录';
+                btn.disabled = false;
             } else {
-                alert('🎉 订阅成功！您将开始接收波动预警。');
-                emailInput.value = '';
+                alert('🚀 邮件已发送！请查收您的收件箱并点击登录链接。');
+                btn.innerText = '请查看您的邮件';
             }
-            btn.innerText = '立即订阅';
+        }
+
+        async function logout() {
+            await _supabase.auth.signOut();
+            window.location.reload();
+        }
+
+        async function updateSubscription() {
+            const { data: { user } } = await _supabase.auth.getUser();
+            const threshold = document.getElementById('threshold-range').value;
+            const btn = document.getElementById('update-btn');
+            
+            btn.innerText = '正在保存...';
+            btn.disabled = true;
+
+            const { error } = await _supabase.from('subscriptions').upsert({
+                email: user.email,
+                threshold: parseFloat(threshold),
+                if_user_id: user.id,
+                banks: ['中国银行', '工商银行'] # 暂定
+            }, { onConflict: 'email' });
+
+            if (error) {
+                alert('更新失败：' + error.message);
+            } else {
+                alert('✅ 设置已保存！Jarvis 将按新规则为您监控市场。');
+            }
+            btn.innerText = '保存设置';
             btn.disabled = false;
         }
 
@@ -123,41 +170,32 @@
                 const url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=20&po=1&np=1&ut=bd1d9ddb040897f3cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m:118,m:119,m:120,m:121&fields=f12,f14,f2,f3,f4";
                 const response = await fetch(url);
                 const result = await response.json();
-                
                 if (result.rc === 0) {
                     const targets = ["AU9999", "AGTD", "黄金9999", "白银T+D"];
-                    const filtered = result.data.diff.filter(item => targets.includes(item.f14) || targets.includes(item.f12));
-                    renderPrices(filtered);
+                    renderPrices(result.data.diff.filter(item => targets.includes(item.f14) || targets.includes(item.f12)));
                 }
-            } catch (error) {
-                console.error("Fetch failed:", error);
-            }
+            } catch (e) {}
         }
 
         function renderPrices(data) {
             const container = document.getElementById('price-grid');
             container.innerHTML = '';
-            
             data.forEach(item => {
-                const isPositive = parseFloat(item.f3) >= 0;
-                const card = `
+                const isPos = parseFloat(item.f3) >= 0;
+                container.insertAdjacentHTML('beforeend', `
                     <div class="glass-card p-6 rounded-2xl hover:border-amber-500/50 transition cursor-default">
                         <div class="text-xs text-gray-500 mb-2">${item.f14}</div>
                         <div class="flex justify-between items-end">
                             <div class="text-2xl font-bold text-white">${item.f2}</div>
-                            <div class="text-sm ${isPositive ? 'text-green-400' : 'text-red-400'} font-semibold">
-                                ${isPositive ? '+' : ''}${item.f3}%
-                            </div>
+                            <div class="text-sm ${isPos ? 'text-green-400' : 'text-red-400'} font-semibold">${isPos?'+':''}${item.f3}%</div>
                         </div>
                     </div>
-                `;
-                container.insertAdjacentHTML('beforeend', card);
+                `);
             });
         }
 
-        // 初始加载并每分钟刷新一次
-        fetchPrices();
-        setInterval(fetchPrices, 60000);
+        checkUser();
+        setInterval(() => { if (!document.getElementById('user-dashboard').classList.contains('hidden')) fetchPrices(); }, 60000);
     </script>
 </body>
 </html>
