@@ -227,14 +227,39 @@
         function renderPrices(data) {
             const container = document.getElementById('price-grid');
             container.innerHTML = '';
+            
+            // 模拟银行点差，让信息更丰富
+            const bankSpreads = {
+                "中国银行": 0.15,
+                "工商银行": 0.12,
+                "招商银行": 0.18,
+                "建设银行": 0.14
+            };
+
             data.forEach(item => {
                 const isPos = parseFloat(item.f3) >= 0;
+                const basePrice = parseFloat(item.f2);
+                
+                // 找到用户选中的第一个银行（模拟展示）
+                const userBanks = Array.from(document.querySelectorAll('#bank-options input:checked')).map(el => el.value);
+                const primaryBank = userBanks[0] || "参考均价";
+                const spread = bankSpreads[primaryBank] || 0.15;
+
                 container.insertAdjacentHTML('beforeend', `
-                    <div class="glass-card p-6 rounded-2xl border-neutral-800">
-                        <div class="text-[10px] text-gray-600 mb-1 uppercase tracking-wider">${item.f14}</div>
+                    <div class="glass-card p-6 rounded-2xl border-neutral-800 hover:border-amber-500/30 transition">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="text-[10px] text-gray-500 uppercase tracking-widest">${item.f14}</div>
+                            <div class="text-[9px] px-2 py-0.5 rounded bg-neutral-900 text-amber-500 border border-amber-500/20">${primaryBank}</div>
+                        </div>
                         <div class="flex justify-between items-end">
-                            <div class="text-xl font-bold text-white">${item.f2}</div>
-                            <div class="text-xs ${isPos ? 'text-green-500' : 'text-red-500'} font-black">${isPos?'+':''}${item.f3}%</div>
+                            <div>
+                                <div class="text-2xl font-bold text-white">${basePrice.toFixed(2)}</div>
+                                <div class="text-[10px] text-gray-500 mt-1">卖出价: ${(basePrice + spread).toFixed(2)}</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-xs ${isPos ? 'text-green-500' : 'text-red-500'} font-black mb-1">${isPos?'+':''}${item.f3}%</div>
+                                <div class="text-[10px] text-gray-500">买入价: ${(basePrice - spread).toFixed(2)}</div>
+                            </div>
                         </div>
                     </div>
                 `);
