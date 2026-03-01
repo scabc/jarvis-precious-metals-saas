@@ -266,9 +266,10 @@
             btn.innerText = '发送中...';
             btn.disabled = true;
 
-            // 获取当前页面的完整 URL，去掉查询参数，确保重定向回当前页面
-            const redirectTo = window.location.origin + window.location.pathname;
-            console.log("Redirecting to:", redirectTo);
+            // 获取当前完整路径，并确保末尾有斜杠或指向 index.html
+            // 请根据你的实际 GitHub Pages 地址微调，这里使用动态获取但增加了更强的容错
+            const redirectTo = window.location.origin + window.location.pathname.replace(/\/?$/, '/');
+            console.log("尝试重定向至:", redirectTo);
 
             const { error } = await _supabase.auth.signInWithOtp({ 
                 email,
@@ -282,7 +283,7 @@
                 btn.innerText = originalText;
                 btn.disabled = false;
             } else {
-                alert('登录链接已发送！请检查您的邮箱。');
+                alert('登录链接已发送！请检查您的邮箱（包括垃圾箱）。\n注意：请在当前浏览器中打开链接。');
                 btn.innerText = '邮件已发送';
             }
         }
