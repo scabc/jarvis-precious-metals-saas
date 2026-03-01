@@ -115,20 +115,49 @@ def generate_personalized_report(sub, market_data):
     """
     return html, current_prices_snapshot
 
+def fetch_jisu_official():
+    """使用极速数据 API 获取官方价格 (备选源)"""
+    key = os.environ.get("JISU_KEY")
+    if not key: return None
+    try:
+        res = requests.get(f"https://api.jisuapi.com/gold/shgold?appkey={key}", timeout=10)
+        json = res.json()
+        if json.get("status") == 0:
+            data = json.get("result", [])
+            ref = {}
+            for i in data:
+                # 极速数据的名称匹配逻辑
+                name = i.get("typename")
+                if name == "黄金延期": ref["Au(T+D)"] = i["price"]
+                if name == "沪金99": ref["Au99.99"] = i["price"]
+                if "伦敦金" in name: ref["伦敦金"] = i["price"]
+            return ref
+    except: return None
+    return None
+
 def github_action_entry():
     sender, password = os.environ.get("SENDER_EMAIL"), os.environ.get("APP_PASSWORD")
     market_data = get_aggregated_data()
     
-    # 每日两次自动同步 (通过判断当前小时来节约 API 额度)
-    # 假设 Action 每 5-10 分钟跑一次，我们只在 9:00 和 20:00 的第一次运行请求探数
+    # 商业 API 智能调度 (每日两次)
     hour = datetime.now().hour
     minute = datetime.now().minute
     if hour in [9, 20] and minute < 10:
-        print(f"[{hour}:00] 触发探数 API 官方校准...")
+        print(f"[{hour}:00] 启动商业源官方校准程序...")
+        
+        # 优先尝试探数 API
         ref_prices = fetch_tanshu_official()
+        
+        # 如果探数失败或额度用完，尝试极速数据 API
+        if not ref_prices:
+            print("探数源未返回数据，尝试切换至极速数据源...")
+            ref_prices = fetch_jisu_official()
+            
         if ref_prices:
             update_global_reference(ref_prices)
-            print(f"官方参考价已同步: {ref_prices}")
+            print(f"官方参考价已成功对齐: {ref_prices}")
+        else:
+            print("警告: 所有商业官方源均未响应。")
 
     if not market_data or not all([sender, password]): return
     
