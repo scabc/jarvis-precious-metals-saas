@@ -353,7 +353,7 @@
                 const proxy = "https://api.allorigins.win/raw?url=";
                 const [emRes, sinaRes, bankRes] = await Promise.allSettled([
                     fetch("https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=30&po=1&np=1&ut=bd1d9ddb040897f3cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m:118,m:119,m:120,m:121&fields=f12,f14,f2,f3").then(r => r.json()),
-                    fetch(proxy + encodeURIComponent("https://hq.sinajs.cn/list=hf_XAU,hf_GC")).then(r => r.text()),
+                    fetch(proxy + encodeURIComponent("https://hq.sinajs.cn/list=hf_XAU,hf_GC,hf_SI")).then(r => r.text()),
                     fetch(proxy + encodeURIComponent("https://api.jijinhao.com/quoteCenter/realTime.htm?codes=JO_9753,JO_71,JO_70,JO_73,JO_9754&_=" + Date.now())).then(r => r.text())
                 ]);
 
@@ -363,10 +363,11 @@
                 }
                 
                 if (sinaRes.status === 'fulfilled') {
-                    const xau = sinaRes.value.match(/hf_XAU="([^"]*)"/);
-                    if (xau) document.getElementById('price-ln').innerText = parseFloat(xau[1].split(',')[0]).toFixed(2);
-                    const gc = sinaRes.value.match(/hf_GC="([^"]*)"/);
-                    if (gc) document.getElementById('price-ny').innerText = parseFloat(gc[1].split(',')[0]).toFixed(2);
+                    // 修复正则表达式以匹配新浪财经数据
+                    const xau = sinaRes.value.match(/hf_XAU="([^,]*)/);
+                    if (xau) document.getElementById('price-ln').innerText = parseFloat(xau[1]).toFixed(2);
+                    const gc = sinaRes.value.match(/hf_GC="([^,]*)/);
+                    if (gc) document.getElementById('price-ny').innerText = parseFloat(gc[1]).toFixed(2);
                 }
 
                 if (bankRes.status === 'fulfilled') {
