@@ -170,39 +170,7 @@
                 </div>
             </section>
 
-            <section id="price-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></section>
-
-            <!-- 预警与特权区 -->
-            <section class="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-12 border-t border-white/5">
-                <div class="lg:col-span-2 glass-card p-10 rounded-3xl space-y-10">
-                    <h4 class="text-xl font-bold tracking-tight">Alert Configuration / 预警配置</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
-                        <div class="space-y-4">
-                            <span class="text-[9px] text-neutral-500 font-black uppercase tracking-widest">Threshold / 触发阈值</span>
-                            <div class="flex items-end gap-4">
-                                <span id="threshold-val" class="text-4xl font-black text-amber-500 mono">0.3%</span>
-                            </div>
-                            <input type="range" id="threshold-range" min="0.001" max="0.01" step="0.001" value="0.003" class="w-full h-1.5 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-amber-500" oninput="document.getElementById('threshold-val').innerText = (this.value * 100).toFixed(1) + '%'">
-                        </div>
-                        <div class="space-y-4">
-                            <span class="text-[9px] text-neutral-500 font-black uppercase tracking-widest">Target Assets / 监控品种</span>
-                            <div id="metal-options" class="flex flex-col gap-2">
-                                <label class="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition cursor-pointer"><input type="checkbox" value="AU9999" checked> <span class="text-sm font-bold">Au99.99 黄金</span></label>
-                                <label class="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition cursor-pointer"><input type="checkbox" value="AGTD" checked> <span class="text-sm font-bold">Ag(T+D) 白银</span></label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="glass-card p-10 rounded-3xl bg-amber-500/5 border-amber-500/20 space-y-8">
-                    <h4 class="text-xl font-bold">PRO Privileges</h4>
-                    <ul class="space-y-4 text-xs font-bold text-neutral-400">
-                        <li class="flex items-center gap-3 italic">⚡️ 5-min High Frequency Scan</li>
-                        <li class="flex items-center gap-3 italic">📡 12 Bank Real-time Depth</li>
-                        <li class="flex items-center gap-3 italic">📱 SMS / Webhook Push</li>
-                    </ul>
-                    <button onclick="showPayModal()" class="w-full py-4 bg-amber-500 text-black font-black rounded-2xl hover:scale-[1.02] transition">UPGRADE NOW</button>
-                </div>
-            </section>
+            <section id="price-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-32"></section>
         </div>
     </main>
 
@@ -302,13 +270,8 @@
         }
 
         async function updateSubscription() {
-            const threshold = document.getElementById('threshold-range').value;
-            const metals = Array.from(document.querySelectorAll('#metal-options input:checked')).map(el => el.value);
-            const primaryBank = document.getElementById('main-bank-selector').value;
-            await _supabase.from('subscriptions').upsert({
-                email: currentUser.email, threshold: parseFloat(threshold), if_user_id: currentUser.id, metals: metals, banks: [primaryBank]
-            }, { onConflict: 'email' });
-            alert('Config Saved!');
+            // 已迁移至用户中心，大屏保存仅保留反馈逻辑或移除
+            window.location.href = 'account.html';
         }
 
         function showPayModal() { document.getElementById('pay-modal').style.display = 'flex'; }
