@@ -224,13 +224,19 @@
 
         function updateChart(id, price) {
             if (!charts[id] || isNaN(price)) return;
-            const data = charts[id].data.datasets[0].data;
-            data.push(price);
-            if (data.length > 20) data.shift();
-            charts[id].update('none');
+            try {
+                const data = charts[id].data.datasets[0].data;
+                data.push(price);
+                if (data.length > 20) data.shift();
+                charts[id].update('none');
+            } catch (e) {
+                console.warn("Chart update failed:", e);
+                // 如果图表失效，尝试重新初始化
+                initCharts();
+            }
         }
 
-        _supabase.auth.onAuthStateChange((event, session) => {
+        _supabase.auth.onAuthStateChange(async (event, session) => {
             const guestHero = document.getElementById('guest-hero');
             const dashboard = document.getElementById('dashboard-content');
             const authStatus = document.getElementById('auth-status');
@@ -246,9 +252,12 @@
                 `;
                 guestHero.classList.add('hidden');
                 dashboard.classList.remove('hidden');
-                loadUserData();
+                
+                // 确保在渲染前初始化图表
+                if (Object.keys(charts).length === 0) initCharts();
+                
+                await loadUserData();
                 startCountdown();
-                initCharts();
             } else {
                 currentUser = null;
                 guestHero.classList.remove('hidden');
