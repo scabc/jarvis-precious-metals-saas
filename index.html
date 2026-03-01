@@ -372,35 +372,54 @@
                 const [emRes, sinaRes, bankRes] = await Promise.allSettled([
                     fetch("https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=30&po=1&np=1&ut=bd1d9ddb040897f3cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m:118,m:119,m:120,m:121&fields=f12,f14,f2,f3").then(r => r.json()),
                     fetchWithProxy("https://hq.sinajs.cn/list=hf_XAU,hf_GC,hf_SI").then(r => r.text()),
-                    fetchWithProxy("https://api.jijinhao.com/quoteCenter/realTime.htm?codes=JO_9753,JO_71,JO_70,JO_73,JO_9754&_=" + Date.now()).then(r => r.text())
+                    fetchWithProxy("https://api.jijinhao.com/quoteCenter/realTime.htm?codes=JO_9753,JO_71,JO_70,JO_73,JO_9754,JO_9758,JO_42691,JO_42681&_=" + Date.now()).then(r => r.text())
                 ]);
 
                 if (emRes.status === 'fulfilled') {
-                    const shGold = emRes.value.data.diff.find(i => i.f14 === 'AU9999');
-                    if (shGold) document.getElementById('price-sh').innerText = shGold.f2;
+                    // 根据模式切换 SGE 参考数据
+                    const symbol = currentMetalType === '黄金' ? 'AU9999' : 'AGTD';
+                    const ref = emRes.value.data.diff.find(i => i.f14 === symbol);
+                    if (ref) document.getElementById('price-sh').innerText = ref.f2;
                 }
                 
                 if (sinaRes.status === 'fulfilled') {
-                    const xau = sinaRes.value.match(/hf_XAU="([^,]*)/);
-                    if (xau) document.getElementById('price-ln').innerText = parseFloat(xau[1]).toFixed(2);
-                    const gc = sinaRes.value.match(/hf_GC="([^,]*)/);
-                    if (gc) document.getElementById('price-ny').innerText = parseFloat(gc[1]).toFixed(2);
+                    if (currentMetalType === '黄金') {
+                        const xau = sinaRes.value.match(/hf_XAU="([^,]*)/);
+                        if (xau) document.getElementById('price-ln').innerText = parseFloat(xau[1]).toFixed(2);
+                        const gc = sinaRes.value.match(/hf_GC="([^,]*)/);
+                        if (gc) document.getElementById('price-ny').innerText = parseFloat(gc[1]).toFixed(2);
+                    } else {
+                        // 白银模式解析 hf_SI (COMEX 白银)
+                        const si = sinaRes.value.match(/hf_SI="([^,]*)/);
+                        if (si) {
+                            const val = parseFloat(si[1]).toFixed(2);
+                            document.getElementById('price-ln').innerText = val; // 白银通常看 COMEX
+                            document.getElementById('price-ny').innerText = val;
+                        }
+                    }
                 }
 
                 if (bankRes.status === 'fulfilled') {
                     const m = bankRes.value.match(/\{.*\}/);
                     if (m) {
                         const raw = JSON.parse(m[0]);
-                        const CODE_MAP = { "JO_9753": "工商银行", "JO_71": "建设银行", "JO_70": "中国银行", "JO_73": "农业银行", "JO_9754": "招商银行" };
+                        const GOLD_MAP = { "JO_9753": "工商银行", "JO_71": "建设银行", "JO_70": "中国银行", "JO_73": "农业银行", "JO_9754": "招商银行" };
+                        const SILVER_MAP = { "JO_9758": "工商白银", "JO_42691": "建设白银", "JO_42681": "招商白银" };
+                        
                         const grid = document.getElementById('price-grid');
                         grid.innerHTML = '';
+                        const activeMap = currentMetalType === '黄金' ? GOLD_MAP : SILVER_MAP;
+
                         Object.keys(raw).forEach(code => {
-                            if (CODE_MAP[code]) {
+                            if (activeMap[code]) {
                                 const b = raw[code];
+                                // 基础过滤：白银价格通常在 5-10 元/克，黄金 400+
                                 if (currentMetalType === '黄金' && b.q2 > 2000) return;
+                                if (currentMetalType === '白银' && b.q2 > 100) return;
+
                                 grid.insertAdjacentHTML('beforeend', `
                                     <div class="glass-card p-8 rounded-3xl border-white/5">
-                                        <div class="text-[11px] font-black text-amber-500 uppercase mb-6">${CODE_MAP[code]}</div>
+                                        <div class="text-[11px] font-black text-amber-500 uppercase mb-6">${activeMap[code]}</div>
                                         <div class="text-4xl font-black mono mb-4">${b.q1}</div>
                                         <div class="flex justify-between text-xs text-neutral-500"><span>买入: ${b.q2}</span><span>点差: ${(b.q1-b.q2).toFixed(2)}</span></div>
                                     </div>
