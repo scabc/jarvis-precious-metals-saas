@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户中心 | Jarvis 贵金属终端</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Space+Mono:wght@400;700&display=swap');
+        :root { --gold: #FFD700; --bg: #0A0A0B; --card: #141417; --border: rgba(255, 255, 255, 0.04); }
+        body { font-family: 'Bricolage Grotesque', sans-serif; background-color: var(--bg); color: white; background-image: radial-gradient(circle at 50% -20%, #1a1a1e 0%, var(--bg) 80%); }
+        .mono { font-family: 'Space Mono', monospace; }
+        .glass-card { background: var(--card); border: 1px solid var(--border); box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-6">
+    <div class="w-full max-w-2xl space-y-8">
+        <div class="flex justify-between items-end">
+            <div>
+                <a href="index.html" class="text-amber-500 text-xs font-black uppercase tracking-widest mb-2 block">← 返回监控大屏</a>
+                <h1 class="text-4xl font-black tracking-tighter">用户中心 <span class="text-neutral-600">/ Account</span></h1>
+            </div>
+            <div id="user-email" class="text-right text-xs font-bold text-neutral-500"></div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- 订阅状态 -->
+            <div class="glass-card p-8 rounded-3xl space-y-6">
+                <div class="text-[10px] font-black text-amber-500 uppercase tracking-widest">Subscription Status</div>
+                <div class="space-y-1">
+                    <div id="plan-display" class="text-3xl font-black">Free Plan</div>
+                    <div id="expire-display" class="text-xs text-neutral-500 font-bold">试用期剩余: <span id="countdown-clock" class="text-amber-500 mono">--:--:--</span></div>
+                </div>
+                <button onclick="window.location.href='#pricing'" class="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl text-[10px] font-black transition">续费或升级 PRO</button>
+            </div>
+
+            <!-- 预警通知配置 -->
+            <div class="glass-card p-8 rounded-3xl space-y-6">
+                <div class="text-[10px] font-black text-blue-500 uppercase tracking-widest">Alert Settings</div>
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between mb-2">
+                            <span class="text-xs font-bold text-neutral-400">波动预警阈值</span>
+                            <span id="threshold-val" class="text-xs font-black text-amber-500 mono">0.3%</span>
+                        </div>
+                        <input type="range" id="threshold-range" min="0.001" max="0.01" step="0.001" value="0.003" class="w-full h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-amber-500" oninput="document.getElementById('threshold-val').innerText = (this.value * 100).toFixed(1) + '%'">
+                    </div>
+                    <div class="flex flex-col gap-2" id="metal-options">
+                        <label class="flex items-center gap-3 text-xs font-bold"><input type="checkbox" value="AU9999" checked> Au99.99 黄金监控</label>
+                        <label class="flex items-center gap-3 text-xs font-bold"><input type="checkbox" value="AGTD" checked> Ag(T+D) 白银监控</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 支付选项 -->
+        <div id="pricing" class="glass-card p-10 rounded-[2.5rem] border-amber-500/20 bg-amber-500/5">
+            <div class="text-center mb-10">
+                <h2 class="text-2xl font-black mb-2">升级 Jarvis PRO</h2>
+                <p class="text-neutral-500 text-xs font-bold uppercase tracking-widest">解锁高频监控与全银行牌价</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                <div class="space-y-4">
+                    <div class="flex items-center gap-3 text-sm font-bold text-neutral-300">⚡️ 每 5 分钟高频行情扫描</div>
+                    <div class="flex items-center gap-3 text-sm font-bold text-neutral-300">📡 12 家主流银行深度数据</div>
+                    <div class="flex items-center gap-3 text-sm font-bold text-neutral-300">📱 邮件 / Webhook 实时推送</div>
+                </div>
+                <div class="bg-black/40 p-8 rounded-3xl text-center border border-white/5">
+                    <div class="text-4xl font-black mb-1">¥9.9 <span class="text-[10px] text-neutral-600">/ MONTH</span></div>
+                    <div class="text-[10px] text-neutral-500 mb-6 font-bold">永久获得历史行情图表查询权限</div>
+                    <button onclick="alert('跳转支付中...')" class="w-full py-4 bg-amber-500 text-black font-black rounded-2xl hover:scale-105 transition">立即订阅</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-center gap-8">
+            <button onclick="saveSettings()" class="bg-white text-black px-12 py-4 rounded-2xl font-black text-sm hover:bg-amber-500 transition">保存配置并应用</button>
+            <button onclick="_supabase.auth.signOut()" class="text-neutral-600 hover:text-white transition font-bold text-xs">退出登录</button>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = "https://xoatcihvsyeluiahctuz.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_qPoLPXTl5kxJM90zTIqYbA_2OJx3cPz";
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        let currentUser = null;
+        let expireDate = null;
+
+        _supabase.auth.onAuthStateChange((event, session) => {
+            if (!session) window.location.href = "index.html";
+            currentUser = session.user;
+            document.getElementById('user-email').innerText = currentUser.email;
+            loadUserData();
+        });
+
+        async function loadUserData() {
+            const { data } = await _supabase.from('subscriptions').select('*').eq('if_user_id', currentUser.id).single();
+            if (data) {
+                document.getElementById('threshold-range').value = data.threshold;
+                document.getElementById('threshold-val').innerText = (data.threshold * 100).toFixed(1) + '%';
+                if (data.plan === 'PRO') {
+                    document.getElementById('plan-display').innerText = 'Jarvis PRO';
+                    document.getElementById('plan-display').classList.add('text-amber-500');
+                }
+                expireDate = new Date(data.expires_at);
+                startCountdown();
+            }
+        }
+
+        function startCountdown() {
+            setInterval(() => {
+                if (!expireDate) return;
+                const now = new Date();
+                const diff = expireDate - now;
+                const clock = document.getElementById('countdown-clock');
+                if (diff <= 0) { clock.innerText = "已过期"; }
+                else {
+                    const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
+                    const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+                    const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+                    clock.innerText = `${h}:${m}:${s}`;
+                }
+            }, 1000);
+        }
+
+        async function saveSettings() {
+            const threshold = document.getElementById('threshold-range').value;
+            const metals = Array.from(document.querySelectorAll('#metal-options input:checked')).map(el => el.value);
+            await _supabase.from('subscriptions').upsert({
+                email: currentUser.email, threshold: parseFloat(threshold), if_user_id: currentUser.id, metals: metals
+            }, { onConflict: 'email' });
+            alert('配置已保存！后端监控将立即按此阈值运行。');
+        }
+    </script>
+</body>
+</html>

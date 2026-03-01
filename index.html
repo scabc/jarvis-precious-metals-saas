@@ -230,7 +230,11 @@
             const authStatus = document.getElementById('auth-status');
             if (session) {
                 currentUser = session.user;
-                authStatus.innerHTML = `<span class="text-neutral-500 font-bold">${session.user.email}</span> <button onclick="_supabase.auth.signOut()" class="ml-4 hover:text-white transition">Logout</button>`;
+                authStatus.innerHTML = `
+                    <button onclick="window.location.href='account.html'" class="hover:text-amber-500 transition">ACCOUNT</button>
+                    <span class="w-1 h-1 bg-neutral-800 rounded-full"></span>
+                    <button onclick="_supabase.auth.signOut()" class="hover:text-white transition">LOGOUT</button>
+                `;
                 guestHero.classList.add('hidden');
                 dashboard.classList.remove('hidden');
                 loadUserData();
