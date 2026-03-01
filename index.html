@@ -244,23 +244,27 @@
             if (!email) return;
             const btn = document.getElementById('login-btn');
             const originalText = btn.innerText;
-            btn.innerText = 'Sending...';
+            btn.innerText = '发送中...';
             btn.disabled = true;
+
+            // 获取当前页面的完整 URL，去掉查询参数，确保重定向回当前页面
+            const redirectTo = window.location.origin + window.location.pathname;
+            console.log("Redirecting to:", redirectTo);
 
             const { error } = await _supabase.auth.signInWithOtp({ 
                 email,
                 options: {
-                    emailRedirectTo: window.location.origin + window.location.pathname
+                    emailRedirectTo: redirectTo
                 }
             });
 
             if (error) {
-                alert('Error: ' + error.message);
+                alert('错误: ' + error.message);
                 btn.innerText = originalText;
                 btn.disabled = false;
             } else {
-                alert('Magic link sent! Check your inbox.');
-                btn.innerText = 'Link Sent';
+                alert('登录链接已发送！请检查您的邮箱。');
+                btn.innerText = '邮件已发送';
             }
         }
 
