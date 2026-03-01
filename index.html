@@ -97,10 +97,52 @@
                         </select>
                     </div>
                 </div>
-                <div class="flex gap-3">
+                <div class="flex gap-3 items-center">
+                    <div id="source-status"></div>
                     <button id="upgrade-badge-btn" onclick="showPayModal()" class="bg-white/10 hover:bg-white/20 text-white px-5 py-2 rounded-xl text-xs font-bold transition">💎 升级 PRO</button>
                     <button onclick="updateSubscription()" id="update-btn" class="bg-amber-500 text-black px-5 py-2 rounded-xl text-xs font-black transition shadow-lg shadow-amber-500/20">保存设置</button>
                 </div>
+            </div>
+
+            <!-- 顶部多源基准行情 (上海/纽约/伦敦) -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="glass-card p-6 rounded-3xl border-amber-500/20 bg-amber-500/5 relative overflow-hidden group">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="text-[10px] font-black text-amber-500 uppercase tracking-widest">Shanghai / 上海金</span>
+                        <span class="text-[10px] text-gray-500 font-bold">SGE AU9999</span>
+                    </div>
+                    <div class="flex items-baseline gap-2">
+                        <span id="price-sh" class="text-3xl font-black mono text-white">---</span>
+                        <span class="text-xs text-gray-400 font-bold">CNY/g</span>
+                    </div>
+                </div>
+                <div class="glass-card p-6 rounded-3xl border-blue-500/20 bg-blue-500/5 relative overflow-hidden group">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="text-[10px] font-black text-blue-500 uppercase tracking-widest">New York / 纽约金</span>
+                        <span class="text-[10px] text-gray-500 font-bold">COMEX GOLD</span>
+                    </div>
+                    <div class="flex items-baseline gap-2">
+                        <span id="price-ny" class="text-3xl font-black mono text-white">---</span>
+                        <span class="text-xs text-gray-400 font-bold">USD/oz</span>
+                    </div>
+                </div>
+                <div class="glass-card p-6 rounded-3xl border-purple-500/20 bg-purple-500/5 relative overflow-hidden group">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="text-[10px] font-black text-purple-500 uppercase tracking-widest">London / 伦敦金</span>
+                        <span class="text-[10px] text-gray-500 font-bold">XAU SPOT</span>
+                    </div>
+                    <div class="flex items-baseline gap-2">
+                        <span id="price-ln" class="text-3xl font-black mono text-white">---</span>
+                        <span class="text-xs text-gray-400 font-bold">USD/oz</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 品种切换 Button -->
+            <div class="flex flex-wrap items-center gap-3">
+                <button onclick="switchMetal('黄金')" id="btn-gold" class="metal-tab active px-8 py-3 rounded-2xl font-black text-sm transition-all border border-amber-500/30 bg-amber-500 text-black shadow-lg shadow-amber-500/20">黄金积存</button>
+                <button onclick="switchMetal('白银')" id="btn-silver" class="metal-tab px-8 py-3 rounded-2xl font-black text-sm transition-all border border-white/5 bg-neutral-900 text-gray-400 hover:bg-neutral-800">白银积存</button>
+                <button onclick="switchMetal('铂金')" id="btn-platinum" class="metal-tab px-8 py-3 rounded-2xl font-black text-sm transition-all border border-white/5 bg-neutral-900 text-gray-400 hover:bg-neutral-800">铂金/钯金</button>
             </div>
 
             <!-- 数据网格 -->
@@ -261,71 +303,221 @@
             if (error) alert(error.message); else alert('Settings Saved!');
         }
 
+        // ============================================================
+        // 银行真实点差表（与 data_engine.py 保持同步）
+        // 黄金：元/克，白银：元/千克
+        // ============================================================
+        const BANK_SPREADS = {
+            "中国银行":   { "黄金": [0.50, 0.50], "白银": [15, 15] },
+            "工商银行":   { "黄金": [0.40, 0.40], "白银": [12, 12] },
+            "招商银行":   { "黄金": [0.60, 0.60], "白银": [18, 18] },
+            "建设银行":   { "黄金": [0.45, 0.45], "白银": [14, 14] },
+            "农业银行":   { "黄金": [0.42, 0.42], "白银": [13, 13] },
+            "交通银行":   { "黄金": [0.50, 0.50], "白银": [15, 15] },
+            "兴业银行":   { "黄金": [0.55, 0.55], "白银": [16, 16] },
+            "浦发银行":   { "黄金": [0.52, 0.52], "白银": [15, 15] },
+            "中信银行":   { "黄金": [0.58, 0.58], "白银": [17, 17] },
+            "民生银行":   { "黄金": [0.60, 0.60], "白银": [18, 18] },
+            "平安银行":   { "黄金": [0.55, 0.55], "白银": [16, 16] },
+            "光大银行":   { "黄金": [0.58, 0.58], "白银": [17, 17] },
+        };
+
+        // 品种名 → 点差 key 映射
+        const METAL_KEY_MAP = {
+            "黄金9999": "黄金", "AU9999": "黄金",
+            "白银T+D": "白银", "AGTD": "白银",
+        };
+
+        // 交叉验证系数 — 动态汇率
+        let CNY_RATE = 7.25; // 兜底值，会被实时汇率覆盖
+        const CROSS_THRESHOLD = 0.10;
+        let lastCrossCheck = null;
+        let rateLastFetch = 0;
+        const RATE_CACHE_TTL = 60000; // 汇率缓存 60 秒（毫秒）
+
+        async function fetchRealtimeCNYRate() {
+            const now = Date.now();
+            if (now - rateLastFetch < RATE_CACHE_TTL) return CNY_RATE;
+            try {
+                const resp = await fetch("https://push2.eastmoney.com/api/qt/stock/get?secid=119.USDCNY&ut=bd1d9ddb040897f3cf9c27f6f7426281&fields=f43&invt=2");
+                const data = await resp.json();
+                if (data.rc === 0 && data.data && data.data.f43 && data.data.f43 !== "-") {
+                    const rate = parseFloat(data.data.f43) / 10000;
+                    if (rate > 5.0 && rate < 10.0) {
+                        CNY_RATE = rate;
+                        rateLastFetch = now;
+                        console.log(`[汇率] 实时 USD/CNY: ${rate.toFixed(4)}`);
+                    }
+                }
+            } catch (e) {
+                console.warn("[汇率] 获取失败，使用缓存/兜底值:", CNY_RATE);
+            }
+            return CNY_RATE;
+        }
+
+        // 当前显示的品种类型
+        let currentMetalType = '黄金';
+
+        function switchMetal(type) {
+            currentMetalType = type;
+            document.querySelectorAll('.metal-tab').forEach(btn => {
+                btn.classList.remove('bg-amber-500', 'text-black', 'border-amber-500/30', 'shadow-amber-500/20');
+                btn.classList.add('bg-neutral-900', 'text-gray-400', 'border-white/5');
+            });
+            const activeBtn = document.getElementById(`btn-${type === '黄金' ? 'gold' : type === '白银' ? 'silver' : 'platinum'}`);
+            activeBtn.classList.remove('bg-neutral-900', 'text-gray-400', 'border-white/5');
+            activeBtn.classList.add('bg-amber-500', 'text-black', 'border-amber-500/30', 'shadow-amber-500/20');
+            fetchPrices(); // 切换后立即刷新渲染
+        }
+
         async function fetchPrices() {
             try {
-                const response = await fetch("https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=30&po=1&np=1&ut=bd1d9ddb040897f3cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m:118,m:119,m:120,m:121&fields=f12,f14,f2,f3");
-                const res = await response.json();
-                if (res.rc === 0) {
+                // 先获取实时汇率
+                await fetchRealtimeCNYRate();
+
+                // 多源并行请求
+                const [emRes, sinaRes, bankRes] = await Promise.allSettled([
+                    fetch("https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=30&po=1&np=1&ut=bd1d9ddb040897f3cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m:118,m:119,m:120,m:121&fields=f12,f14,f2,f3").then(r => r.json()),
+                    fetch("https://hq.sinajs.cn/list=hf_XAU,hf_XAG,hf_GC", { headers: { Referer: "https://finance.sina.com.cn/" } }).then(r => r.text()).catch(() => null),
+                    // 模拟银行积存金抓取接口 (此处为占位，后续应接入你的 Python 脚本输出的 API)
+                    fetch("https://api.jijinhao.com/quoteCenter/realTime.htm?codes=JO_9753,JO_71,JO_70,JO_73,JO_9754&_=" + Date.now()).then(r => r.text()).catch(() => null)
+                ]);
+
+                let filtered = [];
+                if (emRes.status === "fulfilled" && emRes.value.rc === 0) {
                     const targets = ["AU9999", "AGTD", "黄金9999", "白银T+D", "铂金9995", "钯金9995"];
-                    const filtered = res.data.diff.filter(i => targets.includes(i.f14) || targets.includes(i.f12));
-                    renderTicker(filtered);
-                    renderGrid(filtered);
+                    filtered = emRes.value.data.diff.filter(i => targets.includes(i.f14) || targets.includes(i.f12));
+                    // 更新上海金价格显示
+                    const shGold = filtered.find(i => ["AU9999", "黄金9999"].includes(i.f14));
+                    if (shGold) document.getElementById('price-sh').innerText = shGold.f2;
                 }
-            } catch (e) {}
+
+                // 解析新浪数据 (国际金)
+                let sinaData = {};
+                if (sinaRes.status === "fulfilled" && sinaRes.value) {
+                    const lines = sinaRes.value.trim().split("\n");
+                    lines.forEach(line => {
+                        const m = line.match(/hq_str_hf_(\w+)="([^"]*)"/);
+                        if (m && m[2]) {
+                            const fields = m[2].split(",");
+                            if (fields[0]) sinaData[m[1]] = parseFloat(fields[0]);
+                        }
+                    });
+                    // 更新纽约/伦敦金
+                    if (sinaData.GC) document.getElementById('price-ny').innerText = sinaData.GC;
+                    if (sinaData.XAU) document.getElementById('price-ln').innerText = sinaData.XAU;
+                }
+
+                // 解析银行积存金数据
+                let bankData = [];
+                if (bankRes.status === "fulfilled" && bankRes.value) {
+                    const m = bankRes.value.match(/\{.*\}/);
+                    if (m) {
+                        const raw = JSON.parse(m[0]);
+                        const CODE_MAP = { "JO_9753": "工商银行", "JO_71": "建设银行", "JO_70": "中国银行", "JO_73": "农业银行", "JO_9754": "招商银行" };
+                        Object.keys(raw).forEach(code => {
+                            if (CODE_MAP[code]) {
+                                let buy = raw[code].q2 || 0;
+                                let sell = raw[code].q1 || 0;
+                                // 数据清洗：如果是白银数据且当前是黄金 Tab，跳过；反之亦然
+                                if (currentMetalType === '黄金' && buy > 2000) return;
+                                if (currentMetalType === '白银' && buy < 2000) return;
+                                
+                                bankData.push({ bank: CODE_MAP[code], buy: buy, sell: sell, time: raw[code].time });
+                            }
+                        });
+                    }
+                }
+
+                // 渲染渲染逻辑
+                renderTicker(filtered);
+                renderGrid(filtered, bankData); // 传入银行数据
+                updateSourceStatus(true, Object.keys(sinaData).length > 0);
+                
+            } catch (e) {
+                console.error(e);
+                updateSourceStatus(false, false);
+            }
         }
 
-        function renderTicker(data) {
-            const ticker = document.getElementById('ticker-content');
-            const items = data.map(i => `
-                <div class="ticker-item">
-                    <span class="text-[10px] text-gray-500 font-black uppercase">${i.f14}</span>
-                    <span class="mono font-bold">${i.f2}</span>
-                    <span class="${parseFloat(i.f3) >= 0 ? 'text-green-500' : 'text-red-500'} text-xs font-black">${parseFloat(i.f3) >= 0 ? '+' : ''}${i.f3}%</span>
-                </div>
-            `).join('');
-            ticker.innerHTML = items + items; // 复制一份实现无缝滚动
-        }
-
-        function renderGrid(data) {
+        function renderGrid(emData, bankData) {
             const container = document.getElementById('price-grid');
-            const bank = document.getElementById('main-bank-selector').value;
-            const spreadMap = { "工商银行": 0.12, "招商银行": 0.18, "中国银行": 0.15, "建设银行": 0.14, "农业银行": 0.13, "交通银行": 0.15, "兴业银行": 0.17, "浦发银行": 0.16, "邮储银行": 0.14, "中信银行": 0.18, "民生银行": 0.19, "平安银行": 0.17, "光大银行": 0.18 };
-            const spread = spreadMap[bank] || 0.15;
-
             container.innerHTML = '';
-            data.filter(i => ["AU9999", "AGTD", "黄金9999", "白银T+D"].includes(i.f14)).forEach(item => {
-                const isPos = parseFloat(item.f3) >= 0;
-                const base = parseFloat(item.f2);
-                container.insertAdjacentHTML('beforeend', `
-                    <div class="glass-card p-8 rounded-[2rem] border-white/5 hover:border-amber-500/20 transition-all group relative overflow-hidden">
-                        <div class="absolute -right-4 -top-4 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition"></div>
-                        <div class="flex justify-between items-start mb-6">
-                            <div class="text-[11px] font-black text-gray-500 uppercase tracking-widest">${item.f14}</div>
-                            <div class="px-2 py-1 rounded bg-amber-500/10 text-amber-500 text-[9px] font-black border border-amber-500/20">${bank}</div>
-                        </div>
-                        <div class="space-y-6">
-                            <div class="text-4xl font-black tracking-tighter text-white mono">${base.toFixed(2)}</div>
-                            <div class="flex justify-between items-center pt-4 border-t border-white/5">
-                                <div class="space-y-1">
-                                    <div class="text-[9px] text-gray-600 font-bold uppercase">Ask / 卖出</div>
-                                    <div class="text-sm font-bold text-gray-300 mono">${(base + spread).toFixed(2)}</div>
+
+            // 如果有银行积存金数据，优先渲染积存金卡片
+            if (bankData.length > 0) {
+                bankData.forEach(item => {
+                    const buy = parseFloat(item.buy);
+                    const sell = parseFloat(item.sell);
+                    const spread = (sell - buy).toFixed(2);
+                    
+                    container.insertAdjacentHTML('beforeend', `
+                        <div class="glass-card p-8 rounded-[2rem] border-white/5 hover:border-amber-500/20 transition-all group relative overflow-hidden">
+                            <div class="flex justify-between items-start mb-6">
+                                <div class="text-[11px] font-black text-amber-500 uppercase tracking-widest">${item.bank}</div>
+                                <div class="px-2 py-1 rounded bg-amber-500/10 text-amber-500 text-[9px] font-black border border-amber-500/20">积存金实时</div>
+                            </div>
+                            <div class="space-y-6">
+                                <div class="text-4xl font-black tracking-tighter text-white mono">${sell.toFixed(2)}</div>
+                                <div class="flex justify-between items-center pt-4 border-t border-white/5">
+                                    <div class="space-y-1">
+                                        <div class="text-[9px] text-gray-600 font-bold uppercase">你买 (卖出)</div>
+                                        <div class="text-sm font-bold text-gray-300 mono">${sell.toFixed(2)}</div>
+                                    </div>
+                                    <div class="text-right space-y-1">
+                                        <div class="text-[9px] text-gray-600 font-bold uppercase">你卖 (买入)</div>
+                                        <div class="text-sm font-bold text-gray-300 mono">${buy.toFixed(2)}</div>
+                                    </div>
                                 </div>
-                                <div class="text-right space-y-1">
-                                    <div class="text-[9px] text-gray-600 font-bold uppercase">Bid / 买入</div>
-                                    <div class="text-sm font-bold text-gray-300 mono">${(base - spread).toFixed(2)}</div>
+                                <div class="flex justify-between items-center text-[10px]">
+                                    <span class="text-gray-500 font-bold">买卖点差</span>
+                                    <span class="text-amber-500 font-black">${spread} 元</span>
                                 </div>
                             </div>
-                            <div class="flex justify-between items-center text-[10px]">
-                                <span class="text-gray-500 font-bold">24H Change</span>
-                                <span class="${isPos ? 'text-green-500' : 'text-red-500'} font-black">${isPos?'+':''}${item.f3}%</span>
+                        </div>
+                    `);
+                });
+            } else {
+                // 回退到上金所基准行情 (带点差模拟)
+                const bank = document.getElementById('main-bank-selector').value;
+                const bankSpreads = BANK_SPREADS[bank] || BANK_SPREADS["中国银行"];
+                
+                const targetName = currentMetalType === '黄金' ? ["AU9999", "黄金9999"] : currentMetalType === '白银' ? ["AGTD", "白银T+D"] : ["铂金9995", "钯金9995"];
+
+                emData.filter(i => targetName.includes(i.f14)).forEach(item => {
+                    const base = parseFloat(item.f2);
+                    const metalKey = METAL_KEY_MAP[item.f14] || (currentMetalType === '黄金' ? '黄金' : '白银');
+                    const spreads = bankSpreads[metalKey] || [0.5, 0.5];
+                    const bid = base - spreads[0];
+                    const ask = base + spreads[1];
+                    const fmt = v => currentMetalType === '白银' ? v.toFixed(0) : v.toFixed(2);
+
+                    container.insertAdjacentHTML('beforeend', `
+                        <div class="glass-card p-8 rounded-[2rem] border-white/5 hover:border-amber-500/20 transition-all group relative overflow-hidden">
+                            <div class="flex justify-between items-start mb-6">
+                                <div class="text-[11px] font-black text-gray-500 uppercase tracking-widest">${item.f14}</div>
+                                <div class="px-2 py-1 rounded bg-white/5 text-gray-400 text-[9px] font-black border border-white/10">基准模拟 (${bank})</div>
+                            </div>
+                            <div class="space-y-6">
+                                <div class="text-4xl font-black tracking-tighter text-white mono">${fmt(base)}</div>
+                                <div class="flex justify-between items-center pt-4 border-t border-white/5">
+                                    <div class="space-y-1">
+                                        <div class="text-[9px] text-gray-600 font-bold uppercase">你买 (卖出)</div>
+                                        <div class="text-sm font-bold text-gray-300 mono">${fmt(ask)}</div>
+                                    </div>
+                                    <div class="text-right space-y-1">
+                                        <div class="text-[9px] text-gray-600 font-bold uppercase">你卖 (买入)</div>
+                                        <div class="text-sm font-bold text-gray-300 mono">${fmt(bid)}</div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                `);
-            });
+                    `);
+                });
+            }
         }
 
-        setInterval(fetchPrices, 60000);
+        setInterval(fetchPrices, 5000); // 5秒刷新
     </script>
 </body>
 </html>
