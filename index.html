@@ -106,7 +106,7 @@
         <!-- 访客引导页 -->
         <section id="guest-hero" class="text-center py-20 space-y-8">
             <h2 class="text-7xl font-black tracking-tighter">智能贵金属<br><span class="text-amber-500 italic">实时监控终端</span></h2>
-            <p class="text-neutral-500 max-w-xl mx-auto font-medium">聚合 12 家主流银行实时牌价，全天候云端扫描。为专业交易者设计的极速波动预警。</p>
+            <p class="text-neutral-500 max-w-xl mx-auto font-medium">聚合 12 家主流银行实时牌牌价，全天候云端扫描。为专业交易者设计的极速波动预警。</p>
             <div class="flex flex-col sm:flex-row justify-center gap-4 pt-6">
                 <input type="email" id="login-email" placeholder="输入邮箱开通监控..." class="bg-neutral-900 border border-white/5 rounded-2xl px-6 py-4 w-full sm:w-80 focus:outline-none focus:border-amber-500">
                 <button onclick="login()" id="login-btn" class="bg-amber-500 text-black font-black px-10 py-4 rounded-2xl hover:bg-amber-600 transition">立即开启</button>
@@ -254,7 +254,6 @@
             const { error } = await _supabase.auth.signInWithOtp({ 
                 email,
                 options: {
-                    // 确保返回当前页面路径，解决 Magic Link 返回白屏或 404 的问题
                     emailRedirectTo: window.location.origin + window.location.pathname
                 }
             });
@@ -316,7 +315,7 @@
             const ticker = document.getElementById('ticker-content');
             if (!ticker) return;
             ticker.innerHTML = '';
-            const items = [...data, ...data]; // Double for seamless loop
+            const items = [...data, ...data];
             items.forEach(item => {
                 const color = item.f3 > 0 ? 'text-green-400' : 'text-red-400';
                 ticker.insertAdjacentHTML('beforeend', `
@@ -349,12 +348,27 @@
 
         async function fetchPrices() {
             try {
-                // 浏览器环境下使用代理规避 CORS 666/403 错误
-                const proxy = "https://api.allorigins.win/raw?url=";
+                // 解决 allorigins 520/522 不稳定的多代理备份机制
+                const proxies = [
+                    "https://api.allorigins.win/raw?url=",
+                    "https://corsproxy.io/?url=",
+                    "https://api.codetabs.com/v1/proxy?quest="
+                ];
+                
+                async function fetchWithProxy(url) {
+                    for (const p of proxies) {
+                        try {
+                            const res = await fetch(p + encodeURIComponent(url));
+                            if (res.ok) return res;
+                        } catch (e) {}
+                    }
+                    throw new Error("All proxies failed");
+                }
+
                 const [emRes, sinaRes, bankRes] = await Promise.allSettled([
                     fetch("https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=30&po=1&np=1&ut=bd1d9ddb040897f3cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m:118,m:119,m:120,m:121&fields=f12,f14,f2,f3").then(r => r.json()),
-                    fetch(proxy + encodeURIComponent("https://hq.sinajs.cn/list=hf_XAU,hf_GC,hf_SI")).then(r => r.text()),
-                    fetch(proxy + encodeURIComponent("https://api.jijinhao.com/quoteCenter/realTime.htm?codes=JO_9753,JO_71,JO_70,JO_73,JO_9754&_=" + Date.now())).then(r => r.text())
+                    fetchWithProxy("https://hq.sinajs.cn/list=hf_XAU,hf_GC,hf_SI").then(r => r.text()),
+                    fetchWithProxy("https://api.jijinhao.com/quoteCenter/realTime.htm?codes=JO_9753,JO_71,JO_70,JO_73,JO_9754&_=" + Date.now()).then(r => r.text())
                 ]);
 
                 if (emRes.status === 'fulfilled') {
@@ -363,7 +377,6 @@
                 }
                 
                 if (sinaRes.status === 'fulfilled') {
-                    // 修复正则表达式以匹配新浪财经数据
                     const xau = sinaRes.value.match(/hf_XAU="([^,]*)/);
                     if (xau) document.getElementById('price-ln').innerText = parseFloat(xau[1]).toFixed(2);
                     const gc = sinaRes.value.match(/hf_GC="([^,]*)/);
@@ -393,7 +406,6 @@
                     }
                 }
                 
-                // 执行渲染
                 if (emRes.status === 'fulfilled') renderTicker(emRes.value.data.diff);
                 updateSourceStatus(emRes.status === 'fulfilled', sinaRes.status === 'fulfilled');
             } catch (e) { console.error(e); }
