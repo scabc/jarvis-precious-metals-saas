@@ -282,28 +282,36 @@
             if (!email) return;
             const btn = document.getElementById('login-btn');
             const originalText = btn.innerText;
-            btn.innerText = '发送中...';
-            btn.disabled = true;
+            
+            try {
+                btn.innerText = '发送中...';
+                btn.disabled = true;
 
-            // 核心修复：GitHub Pages 对路径极其敏感，直接使用当前干净的 URL 作为重定向地址
-            // 去掉现有的 # (Token) 或 ? (参数)，获取最纯净的当前页面路径
-            const redirectTo = window.location.href.split('#')[0].split('?')[0];
-            console.log("最终重定向地址 (redirectTo):", redirectTo);
+                // 核心修复：GitHub Pages 对路径极其敏感，直接使用当前干净的 URL 作为重定向地址
+                const redirectTo = window.location.href.split('#')[0].split('?')[0];
+                console.log("最终重定向地址 (redirectTo):", redirectTo);
 
-            const { error } = await _supabase.auth.signInWithOtp({ 
-                email,
-                options: {
-                    emailRedirectTo: redirectTo
+                const { error } = await _supabase.auth.signInWithOtp({ 
+                    email,
+                    options: {
+                        emailRedirectTo: redirectTo
+                    }
+                });
+
+                if (error) {
+                    alert('错误: ' + error.message);
+                } else {
+                    alert('登录链接已发送！\n\n请在当前浏览器窗口打开邮件链接。');
+                    btn.innerText = '邮件已发送';
                 }
-            });
-
-            if (error) {
-                alert('错误: ' + error.message);
-                btn.innerText = originalText;
-                btn.disabled = false;
-            } else {
-                alert('登录链接已发送！\n\n请务必在【电脑浏览器】中打开邮件链接，不要在手机上打开。');
-                btn.innerText = '邮件已发送';
+            } catch (e) {
+                console.error("Login Error:", e);
+                alert("登录系统异常，请稍后重试");
+            } finally {
+                if (btn.innerText !== '邮件已发送') {
+                    btn.innerText = originalText;
+                    btn.disabled = false;
+                }
             }
         }
 
