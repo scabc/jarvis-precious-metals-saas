@@ -5,8 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jarvis | 贵金属智能大屏终端</title>
     <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        /* 新增走势图容器样式 */
+        .sparkline-container { height: 40px; width: 100%; margin-top: 10px; opacity: 0.6; }
+        /* 支付二维码样式 */
+        .qr-code { width: 200px; height: 200px; background: white; margin: 0 auto; padding: 10px; border-radius: 12px; }
+    </style>
+</head>
         @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Space+Mono:wght@400;700&display=swap');
         
         :root {
@@ -143,14 +149,17 @@
                     <div class="scanline"></div>
                     <div class="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-8">SGE / 上海现货</div>
                     <div class="flex flex-col"><span id="price-sh" class="text-6xl font-black mono mb-2">---</span><span class="text-[10px] text-neutral-600 font-bold uppercase tracking-widest">CNY / GRAM</span></div>
+                    <div class="sparkline-container"><canvas id="chart-sh"></canvas></div>
                 </div>
                 <div class="glass-card p-10 rounded-3xl group">
                     <div class="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-8">COMEX / 纽约期货</div>
                     <div class="flex flex-col"><span id="price-ny" class="text-6xl font-black mono mb-2">---</span><span class="text-[10px] text-neutral-600 font-bold uppercase tracking-widest">USD / OUNCE</span></div>
+                    <div class="sparkline-container"><canvas id="chart-ny"></canvas></div>
                 </div>
                 <div class="glass-card p-10 rounded-3xl group">
                     <div class="text-[10px] font-black text-purple-500 uppercase tracking-widest mb-8">XAU / 伦敦现货</div>
                     <div class="flex flex-col"><span id="price-ln" class="text-6xl font-black mono mb-2">---</span><span class="text-[10px] text-neutral-600 font-bold uppercase tracking-widest">USD / OUNCE</span></div>
+                    <div class="sparkline-container"><canvas id="chart-ln"></canvas></div>
                 </div>
             </section>
 
@@ -176,10 +185,17 @@
     <!-- 支付弹窗 -->
     <div id="pay-modal" class="fixed inset-0 bg-black/95 backdrop-blur-md hidden items-center justify-center p-4 z-[200]">
         <div class="glass-card max-w-md w-full p-12 rounded-[3rem] text-center space-y-8 border-amber-500/50">
-            <h3 class="text-3xl font-black">Jarvis PRO</h3>
-            <div class="py-8 bg-white/5 rounded-3xl"><div class="text-5xl font-black">¥9.9 <span class="text-xs text-neutral-500">/ MONTH</span></div></div>
-            <button onclick="alert('Redirecting...')" class="w-full py-5 bg-amber-500 text-black font-black rounded-2xl text-lg">ALIPAY / WECHAT</button>
-            <button onclick="hidePayModal()" class="text-xs text-neutral-500 font-bold uppercase tracking-widest">Cancel</button>
+            <h3 class="text-3xl font-black">Jarvis PRO 升级</h3>
+            <div class="py-6 bg-white/5 rounded-3xl">
+                <div class="text-5xl font-black">¥9.9 <span class="text-xs text-neutral-500">/ 月</span></div>
+            </div>
+            <div class="space-y-4">
+                <div class="qr-code">
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=https://scabc.github.io/jarvis-precious-metals-saas/pay-success.html" alt="Pay QR">
+                </div>
+                <p class="text-[10px] text-neutral-500 font-bold">扫码支付后系统将自动激活 PRO 权限</p>
+            </div>
+            <button onclick="hidePayModal()" class="text-xs text-neutral-500 font-bold uppercase tracking-widest">取消支付</button>
         </div>
     </div>
 
@@ -191,27 +207,35 @@
         let currentUser = null;
         let expireDate = null;
 
+        let priceHistory = { sh: [], ny: [], ln: [] };
+        let charts = {};
+
+        function initCharts() {
+            ['sh', 'ny', 'ln'].forEach(id => {
+                const ctx = document.getElementById(`chart-${id}`).getContext('2d');
+                charts[id] = new Chart(ctx, {
+                    type: 'line',
+                    data: { labels: new Array(20).fill(''), datasets: [{ data: [], borderColor: '#FFD700', borderWidth: 1.5, tension: 0.4, pointRadius: 0 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
+                });
+            });
+        }
+
+        function updateChart(id, price) {
+            if (!charts[id] || isNaN(price)) return;
+            const data = charts[id].data.datasets[0].data;
+            data.push(price);
+            if (data.length > 20) data.shift();
+            charts[id].update('none');
+        }
+
         _supabase.auth.onAuthStateChange((event, session) => {
-            const guestHero = document.getElementById('guest-hero');
-            const dashboard = document.getElementById('dashboard-content');
-            const authStatus = document.getElementById('auth-status');
+            // ... 原有逻辑 ...
             if (session) {
-                currentUser = session.user;
-                authStatus.innerHTML = `
-                    <button onclick="window.location.href='account.html'" class="hover:text-amber-500 transition">个人中心</button>
-                    <span class="w-1 h-1 bg-neutral-800 rounded-full"></span>
-                    <button onclick="_supabase.auth.signOut()" class="hover:text-white transition">退出</button>
-                `;
-                guestHero.classList.add('hidden');
-                dashboard.classList.remove('hidden');
-                loadUserData();
-                startCountdown();
-            } else {
-                guestHero.classList.remove('hidden');
-                dashboard.classList.add('hidden');
-                authStatus.innerHTML = `<button onclick="document.getElementById('login-email').focus()">Login / Sign Up</button>`;
+                // ...
+                initCharts();
             }
-            fetchPrices();
+            // ...
         });
 
         async function login() {
@@ -334,22 +358,37 @@
                 if (emRes.status === 'fulfilled') {
                     const symbol = currentMetalType === '黄金' ? 'AU9999' : 'AGTD';
                     const ref = emRes.value.data.diff.find(i => i.f14 === symbol);
-                    if (ref) document.getElementById('price-sh').innerText = ref.f2;
+                    if (ref) {
+                        const p = parseFloat(ref.f2);
+                        document.getElementById('price-sh').innerText = p;
+                        updateChart('sh', p);
+                    }
                 }
                 
                 if (sinaRes.status === 'fulfilled') {
                     const data = sinaRes.value;
                     if (currentMetalType === '黄金') {
                         const xauMatch = data.match(/hq_str_hf_XAU="(.*?)"/);
-                        if (xauMatch) document.getElementById('price-ln').innerText = parseFloat(xauMatch[1].split(',')[0]).toFixed(2);
+                        if (xauMatch) {
+                            const p = parseFloat(xauMatch[1].split(',')[0]);
+                            document.getElementById('price-ln').innerText = p.toFixed(2);
+                            updateChart('ln', p);
+                        }
                         const gcMatch = data.match(/hq_str_hf_GC="(.*?)"/);
-                        if (gcMatch) document.getElementById('price-ny').innerText = parseFloat(gcMatch[1].split(',')[0]).toFixed(2);
+                        if (gcMatch) {
+                            const p = parseFloat(gcMatch[1].split(',')[0]);
+                            document.getElementById('price-ny').innerText = p.toFixed(2);
+                            updateChart('ny', p);
+                        }
                     } else {
                         const siMatch = data.match(/hq_str_hf_SI="(.*?)"/);
                         if (siMatch) {
-                            const val = parseFloat(siMatch[1].split(',')[0]).toFixed(2);
-                            document.getElementById('price-ln').innerText = val;
-                            document.getElementById('price-ny').innerText = val;
+                            const val = parseFloat(siMatch[1].split(',')[0]);
+                            const p = val.toFixed(2);
+                            document.getElementById('price-ln').innerText = p;
+                            document.getElementById('price-ny').innerText = p;
+                            updateChart('ln', val);
+                            updateChart('ny', val);
                         }
                     }
                 }
