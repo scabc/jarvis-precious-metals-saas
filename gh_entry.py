@@ -135,6 +135,26 @@ def fetch_jisu_official():
     except: return None
     return None
 
+def fetch_jisu_bank():
+    """使用极速数据获取银行账户金属价格 (支持铂金、钯金)"""
+    key = os.environ.get("JISU_KEY")
+    if not key: return None
+    try:
+        res = requests.get(f"https://api.jisuapi.com/gold/bank?appkey={key}", timeout=10)
+        json = res.json()
+        if json.get("status") == 0:
+            data = json.get("result", [])
+            ref = {}
+            for i in data:
+                name = i.get("typename")
+                if name == "人民币账户黄金": ref["账户黄金"] = i["midprice"]
+                if name == "人民币账户白银": ref["账户白银"] = i["midprice"]
+                if name == "人民币账户铂金": ref["账户铂金"] = i["midprice"]
+                if name == "人民币账户钯金": ref["账户钯金"] = i["midprice"]
+            return ref
+    except: return None
+    return None
+
 def github_action_entry():
     sender, password = os.environ.get("SENDER_EMAIL"), os.environ.get("APP_PASSWORD")
     market_data = get_aggregated_data()
@@ -145,17 +165,20 @@ def github_action_entry():
     if hour in [9, 20] and minute < 10:
         print(f"[{hour}:00] 启动商业源官方校准程序...")
         
-        # 优先尝试探数 API
+        # 1. 抓取大盘基准 (探数/极速)
         ref_prices = fetch_tanshu_official()
-        
-        # 如果探数失败或额度用完，尝试极速数据 API
         if not ref_prices:
-            print("探数源未返回数据，尝试切换至极速数据源...")
             ref_prices = fetch_jisu_official()
+            
+        # 2. 抓取银行官方账户金银/铂钯价格 (极速专属)
+        bank_ref = fetch_jisu_bank()
+        if bank_ref:
+            # 合并两个数据源
+            ref_prices = {**(ref_prices or {}), **bank_ref}
             
         if ref_prices:
             update_global_reference(ref_prices)
-            print(f"官方参考价已成功对齐: {ref_prices}")
+            print(f"官方参考价已全量同步: {ref_prices}")
         else:
             print("警告: 所有商业官方源均未响应。")
 
