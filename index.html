@@ -202,6 +202,7 @@
     <script>
         const SUPABASE_URL = "https://xoatcihvsyeluiahctuz.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_qPoLPXTl5kxJM90zTIqYbA_2OJx3cPz";
+        const TANSHU_KEY = "b727cdcd823c72ac3b416d92e1423bc1";
         const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         let currentUser = null;
@@ -348,7 +349,16 @@
                     throw new Error("Proxies failed");
                 }
 
-                // 修改新浪数据解析，增强鲁棒性
+                // 定义探数数据抓取逻辑 (作为高级兜底)
+                async function fetchTanshu() {
+                    try {
+                        const res = await fetch(`https://api.tanshuapi.com/api/gold_price/v1/index?key=${TANSHU_KEY}`);
+                        const json = await res.json();
+                        if (json.code === 1) return json.data;
+                    } catch (e) { console.error("Tanshu API Error", e); }
+                    return null;
+                }
+
                 const [emRes, sinaRes, bankRes] = await Promise.allSettled([
                     fetch("https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=30&po=1&np=1&ut=bd1d9ddb040897f3cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m:118,m:119,m:120,m:121&fields=f12,f14,f2,f3").then(r => r.json()),
                     fetchWithProxy("https://hq.sinajs.cn/list=hf_XAU,hf_GC,hf_SI").then(r => r.text()),
@@ -421,7 +431,21 @@
                 }
                 
                 if (emRes.status === 'fulfilled') renderTicker(emRes.value.data.diff);
-                updateSourceStatus(emRes.status === 'fulfilled', sinaRes.status === 'fulfilled');
+                
+                // 探数数据兜底逻辑
+                if (sinaRes.status === 'rejected' || (sinaRes.status === 'fulfilled' && !sinaRes.value.includes('hq_str'))) {
+                    console.log("Primary sources failed, calling Tanshu Backup...");
+                    const tsData = await fetchTanshu();
+                    if (tsData) {
+                        const gold = tsData.find(i => i.name === '黄金现货' || i.name === '伦敦金');
+                        if (gold) {
+                            document.getElementById('price-ln').innerText = parseFloat(gold.price).toFixed(2);
+                            updateChart('ln', parseFloat(gold.price));
+                        }
+                    }
+                }
+
+                updateSourceStatus(emRes.status === 'fulfilled', (sinaRes.status === 'fulfilled' && sinaRes.value.includes('hq_str')));
             } catch (e) { console.error(e); }
         }
         setInterval(fetchPrices, 10000);
