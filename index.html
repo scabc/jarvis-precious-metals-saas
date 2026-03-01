@@ -432,19 +432,6 @@
                 
                 if (emRes.status === 'fulfilled') renderTicker(emRes.value.data.diff);
                 
-                // 探数数据兜底逻辑
-                if (sinaRes.status === 'rejected' || (sinaRes.status === 'fulfilled' && !sinaRes.value.includes('hq_str'))) {
-                    console.log("Primary sources failed, calling Tanshu Backup...");
-                    const tsData = await fetchTanshu();
-                    if (tsData) {
-                        const gold = tsData.find(i => i.name === '黄金现货' || i.name === '伦敦金');
-                        if (gold) {
-                            document.getElementById('price-ln').innerText = parseFloat(gold.price).toFixed(2);
-                            updateChart('ln', parseFloat(gold.price));
-                        }
-                    }
-                }
-
                 updateSourceStatus(emRes.status === 'fulfilled', (sinaRes.status === 'fulfilled' && sinaRes.value.includes('hq_str')));
             } catch (e) { console.error(e); }
         }

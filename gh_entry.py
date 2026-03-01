@@ -4,6 +4,33 @@ from datetime import datetime
 from data_engine import get_aggregated_data
 from notifier import send_gmail_notification
 
+def update_global_reference(price_map):
+    """更新全局参考价到数据库，作为前端断流时的兜底"""
+    supabase_url = os.environ.get("SUPABASE_URL")
+    supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
+    # 假设我们有一个专门存放公共数据的表 global_settings
+    url = f"{supabase_url}/rest/v1/global_settings?id=eq.1"
+    headers = {"apikey": supabase_key, "Authorization": f"Bearer {supabase_key}", "Content-Type": "application/json"}
+    requests.patch(url, headers=headers, json={"reference_prices": price_map, "last_updated": datetime.now().isoformat()})
+
+def fetch_tanshu_official():
+    """使用探数 API 获取官方每日参考价 (限额使用)"""
+    key = os.environ.get("TANSHU_KEY")
+    if not key: return None
+    try:
+        res = requests.get(f"https://api.tanshuapi.com/api/gold_price/v1/index?key={key}", timeout=10)
+        json = res.json()
+        if json.get("code") == 1:
+            data = json.get("data", [])
+            # 提取关键价格
+            ref = {}
+            for i in data:
+                if i['name'] in ['黄金现货', '伦敦金', '伦敦银']:
+                    ref[i['name']] = i['price']
+            return ref
+    except: return None
+    return None
+
 def get_subscriptions():
     supabase_url = os.environ.get("SUPABASE_URL")
     supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
@@ -91,6 +118,18 @@ def generate_personalized_report(sub, market_data):
 def github_action_entry():
     sender, password = os.environ.get("SENDER_EMAIL"), os.environ.get("APP_PASSWORD")
     market_data = get_aggregated_data()
+    
+    # 每日两次自动同步 (通过判断当前小时来节约 API 额度)
+    # 假设 Action 每 5-10 分钟跑一次，我们只在 9:00 和 20:00 的第一次运行请求探数
+    hour = datetime.now().hour
+    minute = datetime.now().minute
+    if hour in [9, 20] and minute < 10:
+        print(f"[{hour}:00] 触发探数 API 官方校准...")
+        ref_prices = fetch_tanshu_official()
+        if ref_prices:
+            update_global_reference(ref_prices)
+            print(f"官方参考价已同步: {ref_prices}")
+
     if not market_data or not all([sender, password]): return
     
     subscriptions = get_subscriptions()
