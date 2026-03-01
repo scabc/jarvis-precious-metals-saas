@@ -159,29 +159,24 @@ def github_action_entry():
     sender, password = os.environ.get("SENDER_EMAIL"), os.environ.get("APP_PASSWORD")
     market_data = get_aggregated_data()
     
-    # 商业 API 智能调度 (每日两次)
-    hour = datetime.now().hour
+    # 商业 API 智能调度 (每小时 4 次，每 15 分钟运行一次)
+    # 极速数据 100次/日，24h * 4 = 96次，完美覆盖
     minute = datetime.now().minute
-    if hour in [9, 20] and minute < 10:
-        print(f"[{hour}:00] 启动商业源官方校准程序...")
+    if minute % 15 < 5: # 在每刻钟的前 5 分钟内触发，确保一小时只请求 4 次
+        print(f"[{datetime.now().strftime('%H:%M')}] 启动商业源全量同步 (JisuAPI 主力)...")
         
-        # 1. 抓取大盘基准 (探数/极速)
-        ref_prices = fetch_tanshu_official()
-        if not ref_prices:
-            ref_prices = fetch_jisu_official()
+        # 1. 抓取大盘基准
+        jisu_main = fetch_jisu_official()
+        # 2. 抓取银行账户全品种 (铂、钯、金、银)
+        jisu_bank = fetch_jisu_bank()
+        
+        # 合并所有官方数据
+        official_ref = {**(jisu_main or {}), **(jisu_bank or {})}
+        
+        if official_ref:
+            update_global_reference(official_ref)
+            print(f"官方权威价已全量更新至 Supabase: {official_ref}")
             
-        # 2. 抓取银行官方账户金银/铂钯价格 (极速专属)
-        bank_ref = fetch_jisu_bank()
-        if bank_ref:
-            # 合并两个数据源
-            ref_prices = {**(ref_prices or {}), **bank_ref}
-            
-        if ref_prices:
-            update_global_reference(ref_prices)
-            print(f"官方参考价已全量同步: {ref_prices}")
-        else:
-            print("警告: 所有商业官方源均未响应。")
-
     if not market_data or not all([sender, password]): return
     
     subscriptions = get_subscriptions()
