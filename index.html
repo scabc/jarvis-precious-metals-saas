@@ -165,7 +165,7 @@
 
             <section class="flex flex-col md:flex-row justify-between items-end gap-8 border-t border-white/5 pt-12">
                 <div class="space-y-6">
-                    <div class="text-[10px] font-black text-neutral-500 uppercase tracking-widest">Asset Category</div>
+                    <div class="text-[10px] font-black text-neutral-500 uppercase tracking-widest">Asset Category / 资产分类</div>
                     <div class="flex gap-2">
                         <button onclick="switchMetal('黄金')" id="btn-gold" class="metal-tab active">Gold 黄金</button>
                         <button onclick="switchMetal('白银')" id="btn-silver" class="metal-tab">Silver 白银</button>
@@ -178,7 +178,17 @@
                 </div>
             </section>
 
-            <section id="price-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-32"></section>
+            <!-- 银行积存金区域 -->
+            <div class="space-y-6">
+                <div class="text-[10px] font-black text-neutral-500 uppercase tracking-widest">Bank Accumulation / 银行积存金</div>
+                <section id="price-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></section>
+            </div>
+
+            <!-- 实物金店区域 (仅黄金模式显示) -->
+            <div id="store-section" class="space-y-6 pt-12 border-t border-white/5">
+                <div class="text-[10px] font-black text-amber-500 uppercase tracking-widest">Retail Brands / 实物金店牌价</div>
+                <section id="store-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4"></section>
+            </div>
         </div>
     </main>
 
@@ -437,10 +447,13 @@
                                 if (currentMetalType === '黄金' && b.q2 > 2000) return;
                                 if (currentMetalType === '白银' && b.q2 > 100) return;
                                 grid.insertAdjacentHTML('beforeend', `
-                                    <div class="glass-card p-8 rounded-3xl border-white/5">
+                                    <div class="glass-card p-8 rounded-3xl border-white/5 relative overflow-hidden">
                                         <div class="text-[11px] font-black text-amber-500 uppercase mb-6">${activeMap[code]}</div>
                                         <div class="text-4xl font-black mono mb-4">${b.q1}</div>
-                                        <div class="flex justify-between text-xs text-neutral-500"><span>买入: ${b.q2}</span><span>点差: ${(b.q1-b.q2).toFixed(2)}</span></div>
+                                        <div class="flex justify-between text-[10px] text-neutral-500 font-bold">
+                                            <span>买入: ${b.q2}</span>
+                                            <span class="text-amber-500/50">点差: ${(b.q1-b.q2).toFixed(2)}</span>
+                                        </div>
                                     </div>
                                 `);
                             }
@@ -448,6 +461,26 @@
                     }
                 }
                 
+                // 3. 处理实物金店数据 (直接从 Supabase 获取后端每小时同步的结果)
+                const storeGrid = document.getElementById('store-grid');
+                const storeSection = document.getElementById('store-section');
+                if (currentMetalType === '黄金') {
+                    storeSection.classList.remove('hidden');
+                    storeGrid.innerHTML = '';
+                    const brands = ["周大福", "老凤祥", "周生生", "六福珠宝", "周六福", "中国黄金"];
+                    brands.forEach(b => {
+                        const price = officialRef[`实物金店_${b}`] || '---';
+                        storeGrid.insertAdjacentHTML('beforeend', `
+                            <div class="bg-neutral-900/40 p-6 rounded-2xl border border-white/5 text-center">
+                                <div class="text-[9px] font-black text-neutral-600 uppercase mb-2">${b}</div>
+                                <div class="text-xl font-black mono">${price}</div>
+                            </div>
+                        `);
+                    });
+                } else {
+                    storeSection.classList.add('hidden');
+                }
+
                 updateSourceStatus(!!sinaText, !!bankText);
             } catch (e) { console.error("Fetch Error:", e); }
         }
