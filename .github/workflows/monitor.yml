@@ -19,7 +19,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests beautifulsoup4 PySocks
+          pip install requests beautifulsoup4 PySocks pandas supabase-py
 
       - name: Run Monitor Task
         env:
@@ -28,5 +28,7 @@ jobs:
           TARGET_EMAIL: ${{ secrets.TARGET_EMAIL }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          JISU_KEY: ${{ secrets.JISU_KEY }}
+          TANSHU_KEY: ${{ secrets.TANSHU_KEY }}
           GITHUB_ACTIONS: "true"
         run: python3 gh_entry.py
