@@ -155,27 +155,66 @@ def fetch_jisu_bank():
     except: return None
     return None
 
+def fetch_jisu_all():
+    """全量抓取极速数据所有金价接口 (优化额度使用)"""
+    key = os.environ.get("JISU_KEY")
+    if not key: return None
+    
+    results = {}
+    endpoints = [
+        ("shgold", "上海金"),
+        ("london", "国际金银铂钯期货"),
+        ("bank", "银行账户金银铂钯"),
+        ("hkgold", "香港金价")
+    ]
+    
+    # 仅在白天 (10:00 - 22:00) 抓取金店金价，节省额度
+    hour = datetime.now().hour
+    if 10 <= hour <= 22:
+        endpoints.append(("storegold", "实物金店"))
+
+    for path, label in endpoints:
+        try:
+            res = requests.get(f"https://api.jisuapi.com/gold/{path}?appkey={key}", timeout=10)
+            json = res.json()
+            if json.get("status") == 0 or json.get("status") == "0":
+                data = json.get("result", [])
+                if isinstance(data, list):
+                    for i in data:
+                        name = i.get("typename") or i.get("type")
+                        results[f"{label}_{name}"] = i.get("price") or i.get("midprice")
+                print(f"成功同步: {label}")
+            else:
+                print(f"接口 {label} 返回状态非0: {json.get('msg')}")
+        except Exception as e:
+            print(f"抓取 {label} 失败: {e}")
+            
+    return results
+
 def github_action_entry():
     sender, password = os.environ.get("SENDER_EMAIL"), os.environ.get("APP_PASSWORD")
     market_data = get_aggregated_data()
     
-    # 商业 API 智能调度 (每小时 4 次，每 15 分钟运行一次)
-    # 极速数据 100次/日，24h * 4 = 96次，完美覆盖
+    # 商业 API 智能调度 (调整为每小时 1 次，确保额度 100/日 够用)
+    # 每次同步耗费 4-5 个额度，24小时 * 4 = 96-120 额度
     minute = datetime.now().minute
-    if minute % 15 < 5: # 在每刻钟的前 5 分钟内触发，确保一小时只请求 4 次
-        print(f"[{datetime.now().strftime('%H:%M')}] 启动商业源全量同步 (JisuAPI 主力)...")
+    if minute < 10: # 每个小时的前 10 分钟运行一次
+        print(f"[{datetime.now().strftime('%H:%M')}] 启动商业源全量同步 (JisuAPI 究极版)...")
         
-        # 1. 抓取大盘基准
-        jisu_main = fetch_jisu_official()
-        # 2. 抓取银行账户全品种 (铂、钯、金、银)
-        jisu_bank = fetch_jisu_bank()
-        
-        # 合并所有官方数据
-        official_ref = {**(jisu_main or {}), **(jisu_bank or {})}
+        # 1. 尝试探数校准 (每日 9:00 / 20:00)
+        hour = datetime.now().hour
+        if hour in [9, 20]:
+            ts_ref = fetch_tanshu_official()
+            if ts_ref:
+                update_global_reference(ts_ref)
+                print("探数官方源已同步。")
+
+        # 2. 极速数据全量抓取 (每小时一次)
+        official_ref = fetch_jisu_all()
         
         if official_ref:
             update_global_reference(official_ref)
-            print(f"官方权威价已全量更新至 Supabase: {official_ref}")
+            print(f"官方权威全品种快照已更新: {len(official_ref)} 个品种")
             
     if not market_data or not all([sender, password]): return
     
