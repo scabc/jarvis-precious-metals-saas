@@ -231,12 +231,31 @@
         }
 
         _supabase.auth.onAuthStateChange((event, session) => {
-            // ... 原有逻辑 ...
+            const guestHero = document.getElementById('guest-hero');
+            const dashboard = document.getElementById('dashboard-content');
+            const authStatus = document.getElementById('auth-status');
+            
+            console.log("Auth Event:", event, session);
+
             if (session) {
-                // ...
+                currentUser = session.user;
+                authStatus.innerHTML = `
+                    <button onclick="window.location.href='account.html'" class="hover:text-amber-500 transition">个人中心</button>
+                    <span class="w-1 h-1 bg-neutral-800 rounded-full"></span>
+                    <button onclick="_supabase.auth.signOut()" class="hover:text-white transition">退出</button>
+                `;
+                guestHero.classList.add('hidden');
+                dashboard.classList.remove('hidden');
+                loadUserData();
+                startCountdown();
                 initCharts();
+            } else {
+                currentUser = null;
+                guestHero.classList.remove('hidden');
+                dashboard.classList.add('hidden');
+                authStatus.innerHTML = `<button onclick="document.getElementById('login-email').focus()">登录 / 注册</button>`;
             }
-            // ...
+            fetchPrices();
         });
 
         async function login() {
