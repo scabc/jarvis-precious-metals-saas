@@ -71,41 +71,47 @@ def generate_html_report(market_data):
     """
     return html
 
-def send_market_report(to_email, market_data):
-    subject = f"🔔 Jarvis 贵金属行情快报 | {datetime.now().strftime('%H:%M')}"
-    body = generate_html_report(market_data)
-    
+def send_gmail_notification(to_email, subject, body_html):
+    """
+    通用 Gmail 通知发送函数
+    """
     sender_email = os.environ.get("SENDER_EMAIL", "troiamaribelcl57@gmail.com")
     app_password = os.environ.get("APP_PASSWORD", "plqwxidwkwvqlfob")
     
-    is_github = os.environ.get("GITHUB_ACTIONS") == "true"
-    if not is_github:
+    # 本地开发环境下自动尝试使用代理
+    if not os.environ.get("GITHUB_ACTIONS"):
         try:
             import socks
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(1)
-                if s.connect_ex(("127.0.0.1", 7897)) == 0:
-                    socks.set_default_proxy(socks.SOCKS5, "127.0.0.1", 7897)
-                    socket.socket = socks.socksocket
-                    print("已启用本地 SOCKS5 代理")
+            # 探测本地 Clash/代理端口
+            for port in [7897, 7890, 1080, 10808]:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.5)
+                    if s.connect_ex(("127.0.0.1", port)) == 0:
+                        socks.set_default_proxy(socks.SOCKS5, "127.0.0.1", port)
+                        socket.socket = socks.socksocket
+                        print(f"已检测到本地代理并启用 (Port: {port})")
+                        break
         except Exception: pass
 
     message = MIMEMultipart()
     message["From"] = f"Jarvis Monitor <{sender_email}>"
     message["To"] = to_email
     message["Subject"] = subject
-    message.attach(MIMEText(body, "html"))
+    message.attach(MIMEText(body_html, "html"))
     
     try:
-        server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=20)
-        server.login(sender_email, app_password)
-        server.sendmail(sender_email, to_email, message.as_string())
-        server.close()
-        print(f"行情报告已成功发送至: {to_email}")
+        # 使用 SSL 连接
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=20) as server:
+            server.login(sender_email, app_password)
+            server.sendmail(sender_email, to_email, message.as_string())
+        print(f"通知邮件已成功发送至: {to_email}")
         return True
     except Exception as e:
         print(f"邮件发送失败: {e}")
         return False
+
+# 保持兼容性别名
+send_market_report = send_gmail_notification
 
 if __name__ == "__main__":
     # 测试数据模拟
