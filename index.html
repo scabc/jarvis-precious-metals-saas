@@ -365,79 +365,64 @@
 
         async function fetchPrices() {
             try {
-                // 备选代理列表
+                // 增加更多、更分散的备选代理
                 const proxies = [
                     "https://api.allorigins.win/raw?url=",
+                    "https://api.codetabs.com/v1/proxy?quest=",
                     "https://corsproxy.io/?url=",
-                    "https://api.codetabs.com/v1/proxy?quest="
+                    "https://api.proxyscrape.com/v2/?request=proxyinfo&url="
                 ];
                 
                 async function fetchWithProxy(url) {
-                    for (const p of proxies) {
+                    // 随机打乱代理顺序，避免总是撞在同一个代理上
+                    const shuffled = proxies.sort(() => Math.random() - 0.5);
+                    for (const p of shuffled) {
                         try {
-                            const res = await fetch(p + encodeURIComponent(url));
-                            if (res.ok) return res;
+                            const res = await fetch(p + encodeURIComponent(url), { signal: AbortSignal.timeout(5000) });
+                            if (res.ok) {
+                                const text = await res.text();
+                                if (text && text.length > 10) return text; // 确保拿到了有效内容
+                            }
                         } catch (e) {}
                     }
-                    throw new Error("Proxies failed");
-                }
-
-                // 定义探数数据抓取逻辑 (作为高级兜底)
-                async function fetchTanshu() {
-                    try {
-                        const res = await fetch(`https://api.tanshuapi.com/api/gold_price/v1/index?key=${TANSHU_KEY}`);
-                        const json = await res.json();
-                        if (json.code === 1) return json.data;
-                    } catch (e) { console.error("Tanshu API Error", e); }
                     return null;
                 }
 
-                const [emRes, sinaRes, bankRes] = await Promise.allSettled([
-                    fetch("https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=30&po=1&np=1&ut=bd1d9ddb040897f3cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m:118,m:119,m:120,m:121&fields=f12,f14,f2,f3").then(r => r.json()),
-                    fetchWithProxy("https://hq.sinajs.cn/list=hf_XAU,hf_GC,hf_SI").then(r => r.text()),
-                    fetchWithProxy("https://api.jijinhao.com/quoteCenter/realTime.htm?codes=JO_9753,JO_71,JO_70,JO_73,JO_9754,JO_9758,JO_42691,JO_42681&_=" + Date.now()).then(r => r.text())
+                // 优先从 Supabase 获取后端同步的商业权威价 (每15分钟更新一次)
+                const { data: globalData } = await _supabase.from('global_settings').select('reference_prices').eq('id', 1).single();
+                const officialRef = globalData?.reference_prices || {};
+
+                // 并行抓取：实时源 + 银行源
+                const [sinaText, bankText] = await Promise.all([
+                    fetchWithProxy("https://hq.sinajs.cn/list=hf_XAU,hf_GC,hf_SI"),
+                    fetchWithProxy("https://api.jijinhao.com/quoteCenter/realTime.htm?codes=JO_9753,JO_71,JO_70,JO_73,JO_9754,JO_9758,JO_42691,JO_42681")
                 ]);
 
-                if (emRes.status === 'fulfilled') {
-                    const symbol = currentMetalType === '黄金' ? 'AU9999' : 'AGTD';
-                    const ref = emRes.value.data.diff.find(i => i.f14 === symbol);
-                    if (ref) {
-                        const p = parseFloat(ref.f2);
-                        document.getElementById('price-sh').innerText = p;
-                        updateChart('sh', p);
-                    }
+                // 1. 处理大盘数据 (优先实时源，失败则用数据库官方价)
+                let lnPrice, nyPrice;
+                if (sinaText) {
+                    const xau = sinaText.match(/hq_str_hf_XAU="(.*?)"/);
+                    if (xau) lnPrice = parseFloat(xau[1].split(',')[0]);
+                    const gc = sinaText.match(/hq_str_hf_GC="(.*?)"/);
+                    if (gc) nyPrice = parseFloat(gc[1].split(',')[0]);
                 }
                 
-                if (sinaRes.status === 'fulfilled') {
-                    const data = sinaRes.value;
-                    if (currentMetalType === '黄金') {
-                        const xauMatch = data.match(/hq_str_hf_XAU="(.*?)"/);
-                        if (xauMatch) {
-                            const p = parseFloat(xauMatch[1].split(',')[0]);
-                            document.getElementById('price-ln').innerText = p.toFixed(2);
-                            updateChart('ln', p);
-                        }
-                        const gcMatch = data.match(/hq_str_hf_GC="(.*?)"/);
-                        if (gcMatch) {
-                            const p = parseFloat(gcMatch[1].split(',')[0]);
-                            document.getElementById('price-ny').innerText = p.toFixed(2);
-                            updateChart('ny', p);
-                        }
-                    } else {
-                        const siMatch = data.match(/hq_str_hf_SI="(.*?)"/);
-                        if (siMatch) {
-                            const val = parseFloat(siMatch[1].split(',')[0]);
-                            const p = val.toFixed(2);
-                            document.getElementById('price-ln').innerText = p;
-                            document.getElementById('price-ny').innerText = p;
-                            updateChart('ln', val);
-                            updateChart('ny', val);
-                        }
-                    }
+                // 如果实时源挂了，使用极速/探数同步过来的官方价
+                if (!lnPrice && officialRef["国际金银铂钯期货_伦敦金"]) lnPrice = parseFloat(officialRef["国际金银铂钯期货_伦敦金"]);
+                if (!nyPrice && officialRef["国际金银铂钯期货_伦敦金"]) nyPrice = parseFloat(officialRef["国际金银铂钯期货_伦敦金"]);
+
+                if (lnPrice) {
+                    document.getElementById('price-ln').innerText = lnPrice.toFixed(2);
+                    updateChart('ln', lnPrice);
+                }
+                if (nyPrice) {
+                    document.getElementById('price-ny').innerText = nyPrice.toFixed(2);
+                    updateChart('ny', nyPrice);
                 }
 
-                if (bankRes.status === 'fulfilled') {
-                    const m = bankRes.value.match(/\{.*\}/);
+                // 2. 处理银行数据
+                if (bankText) {
+                    const m = bankText.match(/\{.*\}/);
                     if (m) {
                         const raw = JSON.parse(m[0]);
                         const GOLD_MAP = { "JO_9753": "工商银行", "JO_71": "建设银行", "JO_70": "中国银行", "JO_73": "农业银行", "JO_9754": "招商银行" };
@@ -463,9 +448,12 @@
                     }
                 }
                 
-                if (emRes.status === 'fulfilled') renderTicker(emRes.value.data.diff);
-                
-                updateSourceStatus(emRes.status === 'fulfilled', (sinaRes.status === 'fulfilled' && sinaRes.value.includes('hq_str')));
+                updateSourceStatus(!!sinaText, !!bankText);
+            } catch (e) { console.error("Fetch Error:", e); }
+        }
+        // 降低频率至 20 秒，减少被封风险
+        setInterval(fetchPrices, 20000);
+        fetchPrices();
             } catch (e) { console.error(e); }
         }
         setInterval(fetchPrices, 10000);
