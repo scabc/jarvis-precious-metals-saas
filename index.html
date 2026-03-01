@@ -5,15 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jarvis | 贵金属智能大屏终端</title>
     <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Space+Mono:wght@400;700&display=swap');
+        
         /* 新增走势图容器样式 */
         .sparkline-container { height: 40px; width: 100%; margin-top: 10px; opacity: 0.6; }
         /* 支付二维码样式 */
         .qr-code { width: 200px; height: 200px; background: white; margin: 0 auto; padding: 10px; border-radius: 12px; }
-    </style>
-</head>
-        @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Space+Mono:wght@400;700&display=swap');
         
         :root {
             --gold: #FFD700;
