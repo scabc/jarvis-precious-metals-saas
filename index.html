@@ -135,7 +135,6 @@
                 </div>
                 <div class="flex gap-4">
                     <button onclick="showPayModal()" class="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-black transition border border-white/5">💎 升级 PRO</button>
-                    <button onclick="updateSubscription()" class="px-6 py-2 bg-amber-500 text-black rounded-xl text-[10px] font-black transition">保存配置</button>
                 </div>
             </section>
 
@@ -243,8 +242,6 @@
         async function loadUserData() {
             const { data } = await _supabase.from('subscriptions').select('*').eq('if_user_id', currentUser.id).single();
             if (data) {
-                document.getElementById('threshold-range').value = data.threshold;
-                document.getElementById('threshold-val').innerText = (data.threshold * 100).toFixed(1) + '%';
                 expireDate = new Date(data.expires_at);
                 const badge = document.getElementById('plan-badge-container');
                 if (data.plan === 'PRO') {
