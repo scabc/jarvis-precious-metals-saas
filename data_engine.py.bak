@@ -80,81 +80,20 @@ BANK_SPREADS = {
     },
 }
 
+# 国际 → 国内换算系数（用于交叉验证，不参与实际报价）
+# 注意：国内外市场存在天然价差（关税、VAT、交易时差等），
+# 此系数仅用于粗略校验数据源是否异常，不追求精确
+CNY_RATE = 6.80  # 近似汇率，偏保守以减少误报
+
+# 黄金：国际美元/盎司 → 国内元/克（1盎司=31.1035克）
+AU_INTL_TO_CNY = CNY_RATE / 31.1035
+
+# 白银：国际美元/盎司 → 国内元/千克
+AG_INTL_TO_CNY = CNY_RATE / 31.1035 * 1000
+
 # 交叉验证偏差阈值
 # 国内外价差通常在 3-8%，超过 10% 才认为数据源可能异常
 CROSS_CHECK_THRESHOLD = 0.10
-
-# 汇率缓存（避免每次请求都拉汇率，缓存 60 秒）
-_RATE_CACHE = {"rate": None, "ts": 0}
-_RATE_CACHE_TTL = 60  # 秒
-
-# 固定兜底汇率（当实时汇率获取失败时使用）
-FALLBACK_CNY_RATE = 7.25
-
-
-def fetch_realtime_cny_rate():
-    """
-    从东方财富获取实时美元/人民币汇率
-    接口：东方财富外汇行情（USDCNY）
-    返回: float 汇率值，失败返回 None
-    """
-    now = time.time()
-    # 检查缓存
-    if _RATE_CACHE["rate"] and (now - _RATE_CACHE["ts"]) < _RATE_CACHE_TTL:
-        return _RATE_CACHE["rate"]
-
-    url = "https://push2.eastmoney.com/api/qt/stock/get"
-    params = {
-        "secid": "119.USDCNY",
-        "ut": "bd1d9ddb040897f3cf9c27f6f7426281",
-        "fields": "f43,f44,f45,f46,f170",
-        "invt": "2",
-    }
-    for attempt in range(3):
-        try:
-            resp = _NO_PROXY_SESSION.get(url, params=params, timeout=10)
-            data = resp.json()
-            if data.get("rc") == 0 and data.get("data"):
-                # f43 = 最新价（单位：分，需除以 10000）
-                raw = data["data"].get("f43")
-                if raw and raw != "-":
-                    rate = float(raw) / 10000
-                    if 5.0 < rate < 10.0:  # 合理范围校验
-                        _RATE_CACHE["rate"] = rate
-                        _RATE_CACHE["ts"] = now
-                        print(f"[汇率] 实时 USD/CNY: {rate:.4f}")
-                        return rate
-        except Exception as e:
-            print(f"[汇率] 第{attempt+1}次请求失败: {e}")
-            if attempt < 2:
-                time.sleep(1)
-
-    # 尝试备用接口：新浪财经外汇
-    try:
-        url2 = "https://hq.sinajs.cn/list=fx_susdcny"
-        headers = {"User-Agent": "Mozilla/5.0", "Referer": "https://finance.sina.com.cn/"}
-        resp = _NO_PROXY_SESSION.get(url2, headers=headers, timeout=10)
-        match = re.search(r'"([^"]*)"', resp.text)
-        if match:
-            fields = match.group(1).split(",")
-            if len(fields) >= 1 and fields[0]:
-                rate = float(fields[0])
-                if 5.0 < rate < 10.0:
-                    _RATE_CACHE["rate"] = rate
-                    _RATE_CACHE["ts"] = now
-                    print(f"[汇率] 新浪备用 USD/CNY: {rate:.4f}")
-                    return rate
-    except Exception as e:
-        print(f"[汇率] 新浪备用失败: {e}")
-
-    print(f"[汇率] 全部失败，使用兜底汇率: {FALLBACK_CNY_RATE}")
-    return None
-
-
-def get_cny_rate():
-    """获取当前汇率（实时 > 缓存 > 兜底）"""
-    rate = fetch_realtime_cny_rate()
-    return rate if rate else FALLBACK_CNY_RATE
 
 
 def fetch_eastmoney():
@@ -229,15 +168,10 @@ def fetch_sina():
 def cross_validate(eastmoney_data, sina_data):
     """
     交叉验证：用新浪国际金银价换算后与东方财富国内价比对
-    使用实时汇率进行换算，分别验证黄金和白银
+    分别验证黄金和白银，返回验证结果
     """
     if not eastmoney_data or not sina_data:
         return {"status": "incomplete", "details": "数据源不全"}
-
-    # 获取实时汇率
-    cny_rate = get_cny_rate()
-    au_intl_to_cny = cny_rate / 31.1035
-    ag_intl_to_cny = cny_rate / 31.1035 * 1000
 
     # 提取国内基准价
     prices_cny = {}
@@ -253,20 +187,18 @@ def cross_validate(eastmoney_data, sina_data):
     xau = sina_data.get("XAU")
     au_cny = prices_cny.get("AU")
     if xau and au_cny:
-        est = xau * au_intl_to_cny
+        est = xau * AU_INTL_TO_CNY
         dev = abs(est - au_cny) / au_cny
         results["AU"] = {"estimated": round(est, 2), "actual": au_cny, "deviation": f"{dev:.2%}",
-                         "rate_used": cny_rate,
                          "status": "warning" if dev > CROSS_CHECK_THRESHOLD else "ok"}
 
     # 验证白银
     xag = sina_data.get("XAG")
     ag_cny = prices_cny.get("AG")
     if xag and ag_cny:
-        est = xag * ag_intl_to_cny
+        est = xag * AG_INTL_TO_CNY
         dev = abs(est - ag_cny) / ag_cny
         results["AG"] = {"estimated": round(est, 2), "actual": ag_cny, "deviation": f"{dev:.2%}",
-                         "rate_used": cny_rate,
                          "status": "warning" if dev > CROSS_CHECK_THRESHOLD else "ok"}
 
     overall = "ok"
@@ -275,7 +207,7 @@ def cross_validate(eastmoney_data, sina_data):
             overall = "warning"
             break
 
-    return {"status": overall, "cny_rate": cny_rate, "details": results}
+    return {"status": overall, "details": results}
 
 
 def calc_bank_prices(base_prices):
@@ -348,7 +280,6 @@ def get_full_market_data():
         "intl_prices": sina or {},
         "bank_prices": bank_prices,
         "cross_check": check,
-        "cny_rate": get_cny_rate(),
         "sources": sources,
     }
 
