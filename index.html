@@ -243,6 +243,32 @@
             fetchPrices();
         });
 
+        async function login() {
+            const email = document.getElementById('login-email').value;
+            if (!email) return;
+            const btn = document.getElementById('login-btn');
+            const originalText = btn.innerText;
+            btn.innerText = 'Sending...';
+            btn.disabled = true;
+
+            const { error } = await _supabase.auth.signInWithOtp({ 
+                email,
+                options: {
+                    // 确保返回当前页面路径，解决 Magic Link 返回白屏或 404 的问题
+                    emailRedirectTo: window.location.origin + window.location.pathname
+                }
+            });
+
+            if (error) {
+                alert('Error: ' + error.message);
+                btn.innerText = originalText;
+                btn.disabled = false;
+            } else {
+                alert('Magic link sent! Check your inbox.');
+                btn.innerText = 'Link Sent';
+            }
+        }
+
         async function loadUserData() {
             const { data } = await _supabase.from('subscriptions').select('*').eq('if_user_id', currentUser.id).single();
             if (data) {
