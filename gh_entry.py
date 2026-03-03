@@ -157,15 +157,17 @@ def generate_personalized_report(sub, market_data):
 def github_action_entry():
     print(f"开始执行 Jarvis 全局同步任务: {datetime.now()}")
     
-    # 1. 尝试同步商业参考价
+    # 1. 尝试同步商业参考价（每 4 小时一次，即 00:00, 04:00, 08:00, 12:00, 16:00, 20:00）
     try:
-        minute = datetime.now().minute
-        if minute < 15: # 每小时运行一次商业同步
+        hour = datetime.now().hour
+        if hour % 4 == 0:  # 每 4 小时运行一次商业同步
             print("启动商业源全量同步...")
             official_ref = fetch_jisu_all()
             if official_ref:
                 update_global_reference(official_ref)
                 print(f"官方权威快照已更新: {len(official_ref)} 个品种")
+        else:
+            print(f"跳过商业同步（当前小时: {hour}，下次同步: {(hour // 4 + 1) * 4}:00）")
     except Exception as e:
         print(f"参考价同步环节出错: {e}")
 

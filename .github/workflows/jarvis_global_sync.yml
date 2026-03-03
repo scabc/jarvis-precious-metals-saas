@@ -2,7 +2,7 @@ name: Jarvis Global Sync
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '0 */2 * * *'  # 每 2 小时运行一次（每天 12 次）
   workflow_dispatch:
 
 jobs:
