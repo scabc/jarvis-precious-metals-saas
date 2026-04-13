@@ -1,19 +1,35 @@
 import os
+import logging
 import requests
 from datetime import datetime
-from data_engine import get_aggregated_data
+from data_engine_v3 import BankGoldEngine
+
+def get_aggregated_data():
+    engine = BankGoldEngine()
+    result = engine.get_display_data()
+    return result.get("data", [])
 from notifier import send_gmail_notification
+
+logger = logging.getLogger(__name__)
 
 def update_global_reference(price_map):
     """更新全局参考价到数据库，作为前端断流时的兜底"""
     supabase_url = os.environ.get("SUPABASE_URL")
     supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
     if not all([supabase_url, supabase_key]): return
-    
+
     url = f"{supabase_url}/rest/v1/global_settings?id=eq.1"
     headers = {"apikey": supabase_key, "Authorization": f"Bearer {supabase_key}", "Content-Type": "application/json"}
+    payload = {
+        "reference_prices": price_map,
+        "last_updated": datetime.now().isoformat()
+    }
     try:
-        requests.patch(url, headers=headers, json={"reference_prices": price_map, "last_updated": datetime.now().isoformat()}, timeout=15)
+        resp = requests.patch(url, headers=headers, json=payload, timeout=15)
+        if resp.status_code not in (200, 204):
+            print(f"数据库参考价更新失败: HTTP {resp.status_code} - {resp.text}")
+        else:
+            print(f"权威快照已更新: {len(price_map)} 个品种")
     except Exception as e:
         print(f"数据库参考价更新失败: {e}")
 
@@ -32,22 +48,25 @@ def fetch_tanshu_official():
                 if name in ['黄金现货', '伦敦金', '伦敦银', '铂金现货', '钯金现货']:
                     ref[name] = i.get('price')
             return ref
-    except: return None
+    except Exception as e:
+        logger.warning(f"[fetch_ref_price] failed: {e}")
+        return None
     return None
 
 def fetch_jisu_all():
     """全量抓取极速数据所有金价接口"""
     key = os.environ.get("JISU_KEY")
     if not key: return None
-    
+
     results = {}
     endpoints = [
         ("shgold", "上海金"),
         ("london", "国际期货"),
         ("bank", "银行账户"),
-        ("hkgold", "香港金价")
+        ("hkgold", "香港金价"),
+        ("exchangerate", "汇率"),
     ]
-    
+
     hour = datetime.now().hour
     if 10 <= hour <= 22:
         endpoints.append(("storegold", "实物金店"))
@@ -60,11 +79,19 @@ def fetch_jisu_all():
                 data = json.get("result", [])
                 if isinstance(data, list):
                     for i in data:
-                        name = i.get("typename") or i.get("type")
+                        name = i.get("typename") or i.get("type") or i.get("from") or "主货币对"
                         results[f"{label}_{name}"] = i.get("price") or i.get("midprice")
-                print(f"成功同步: {label}")
-        except: continue
-            
+                    print(f"成功同步: {label} ({len(data)} 条)")
+                elif isinstance(data, dict):
+                    # 汇率接口返回的是字典结构
+                    for k, v in data.items():
+                        if isinstance(v, (int, float)):
+                            results[f"汇率_{k}"] = v
+                    print(f"成功同步: {label}")
+        except Exception as e:
+            logger.warning(f"[fetch_jisu_all] {label} sync failed: {e}")
+            continue
+
     return results
 
 def get_subscriptions():
@@ -87,7 +114,8 @@ def update_last_prices(email, price_map):
     headers = {"apikey": supabase_key, "Authorization": f"Bearer {supabase_key}", "Content-Type": "application/json"}
     try:
         requests.patch(url, headers=headers, json={"last_prices": price_map}, timeout=10)
-    except: pass
+    except Exception as e:
+        logger.warning(f"[update_user_price] patch failed: {e}")
 
 def generate_personalized_report(sub, market_data):
     user_metals = sub.get("metals", ["黄金9999", "AU9999"])

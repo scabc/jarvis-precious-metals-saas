@@ -3,7 +3,10 @@ import requests
 import time
 import json
 import re
+import logging
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 class BankGoldEngine:
     """
@@ -101,7 +104,8 @@ class BankGoldEngine:
             data = resp.json()
             if data.get("code") == 200:
                 return data.get("data", {}).get("bank", [])
-        except:
+        except Exception as e:
+            logger.warning(f"[xxapi] fetch failed: {e}")
             return None
         return None
 
@@ -110,16 +114,20 @@ class BankGoldEngine:
         源 5：ALAPI (v3.alapi.cn)
         提供品牌金饰价（周大福、老凤祥等），作为市场情绪辅助
         """
+        import os
         url = "https://v3.alapi.cn/api/gold/brand"
-        # 注意：此处需要 token，暂时占位，返回模拟或尝试请求
+        token = os.environ.get("ALAPI_TOKEN")
+        if not token:
+            logger.warning("[alapi] ALAPI_TOKEN not set, skipping brand data")
+            return None
         try:
-            # 使用用户提供的 ALAPI Token
-            params = {"token": "t4fgiavrkcsekz4ve72mgghllgs4qf"} 
+            params = {"token": token}
             resp = self.session.get(url, params=params, timeout=10)
             data = resp.json()
             if data.get("code") == 200:
                 return data.get("data", [])
-        except:
+        except Exception as e:
+            logger.warning(f"[alapi] fetch failed: {e}")
             return None
         return None
 

@@ -172,7 +172,7 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-8 bg-neutral-900/30 p-2 rounded-2xl border border-white/5">
-                    <div class="px-6 py-2"><div class="text-[9px] text-neutral-600 font-black uppercase mb-1">实时汇率 / Rate</div><div id="cny-rate-val" class="text-lg font-black mono">7.25</div></div>
+                    <div class="px-6 py-2"><div class="text-[9px] text-neutral-600 font-black uppercase mb-1">实时汇率 / Rate</div><div id="cny-rate-val" class="text-lg font-black mono">---</div></div>
                     <div class="h-10 w-px bg-white/5"></div>
                     <div class="px-6 py-2 pr-10"><div class="text-[9px] text-neutral-600 font-black uppercase mb-1">接口健康 / Health</div><div id="source-status" class="flex gap-1 items-center"></div></div>
                 </div>
@@ -212,7 +212,7 @@
     <script>
         const SUPABASE_URL = "https://xoatcihvsyeluiahctuz.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_qPoLPXTl5kxJM90zTIqYbA_2OJx3cPz";
-        const TANSHU_KEY = "b727cdcd823c72ac3b416d92e1423bc1";
+        // TANSHU_KEY 等敏感密钥仅在后端使用，绝不暴露在前端
         const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         let currentUser = null;
@@ -240,9 +240,9 @@
                 if (data.length > 20) data.shift();
                 charts[id].update('none');
             } catch (e) {
-                console.warn("Chart update failed:", e);
-                // 如果图表失效，尝试重新初始化
-                initCharts();
+                console.warn("Chart update failed, re-init:", e);
+                // 图表失效时重建，不要递归重试
+                delete charts[id];
             }
         }
 
@@ -316,13 +316,21 @@
         }
 
         async function loadUserData() {
-            const { data } = await _supabase.from('subscriptions').select('*').eq('if_user_id', currentUser.id).single();
-            if (data) {
-                expireDate = new Date(data.expires_at);
-                const badge = document.getElementById('plan-badge-container');
-                if (data.plan === 'PRO') {
-                    badge.innerHTML = '<span class="px-2 py-0.5 bg-amber-500 text-black rounded text-[9px] font-black">PRO</span>';
-                }
+            const { data, error } = await _supabase.from('subscriptions').select('*').eq('if_user_id', currentUser.id).single();
+            if (error || !data) {
+                console.warn("用户订阅数据加载失败:", error);
+                return;
+            }
+            expireDate = data.expires_at ? new Date(data.expires_at) : null;
+            const badge = document.getElementById('plan-badge-container');
+            if (data.plan === 'PRO') {
+                badge.innerHTML = '<span class="px-2 py-0.5 bg-amber-500 text-black rounded text-[9px] font-black">PRO</span>';
+            }
+            // 同步用户偏好金属类型
+            if (data.metals && data.metals[0]) {
+                const metalMap = { "黄金9999": "黄金", "Au99.99": "黄金", "白银T+D": "白银", "白银": "白银" };
+                const metalType = metalMap[data.metals[0]] || "黄金";
+                switchMetal(metalType);
             }
         }
 
@@ -409,6 +417,22 @@
                 // 优先从 Supabase 获取后端同步的商业权威价 (每15分钟更新一次)
                 const { data: globalData } = await _supabase.from('global_settings').select('reference_prices').eq('id', 1).single();
                 const officialRef = globalData?.reference_prices || {};
+
+                // 动态更新汇率（从权威价格快照中计算 USD/CNY）
+                const rateEl = document.getElementById('cny-rate-val');
+                if (rateEl) {
+                    const usdCny = officialRef["汇率_USDCNY"] || officialRef["美元人民币汇率"];
+                    if (usdCny) {
+                        rateEl.innerText = parseFloat(usdCny).toFixed(4);
+                    } else {
+                        // 如果权威快照里没有，尝试从国际金价/上海金比例推导
+                        const ln = officialRef["国际金银铂钯期货_伦敦金"];
+                        const sh = officialRef["上海金"];
+                        if (ln && sh) {
+                            rateEl.innerText = (sh / (ln / 31.1035)).toFixed(4);
+                        }
+                    }
+                }
 
                 // 并行抓取：实时源 + 银行源
                 const [sinaText, bankText] = await Promise.all([

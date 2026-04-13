@@ -1,8 +1,11 @@
 
 import smtplib
+import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
+
+logger = logging.getLogger(__name__)
 import socket
 from datetime import datetime
 
@@ -64,8 +67,11 @@ def generate_html_report(market_data):
 
 def send_gmail_notification(to_email, subject, body_content):
     """通用 Gmail 通知发送函数"""
-    sender_email = os.environ.get("SENDER_EMAIL", "troiamaribelcl57@gmail.com")
-    app_password = os.environ.get("APP_PASSWORD", "plqwxidwkwvqlfob")
+    sender_email = os.environ.get("SENDER_EMAIL")
+    app_password = os.environ.get("APP_PASSWORD")
+    if not sender_email or not app_password:
+        print("Gmail credentials not configured. Set SENDER_EMAIL and APP_PASSWORD environment variables.")
+        return False
     
     # 检测是否在 GitHub Actions 环境
     is_github = os.environ.get("GITHUB_ACTIONS") == "true"
@@ -81,7 +87,8 @@ def send_gmail_notification(to_email, subject, body_content):
                         socks.set_default_proxy(socks.SOCKS5, "127.0.0.1", port)
                         socket.socket = socks.socksocket
                         break
-        except: pass
+        except Exception as e:
+            logger.warning(f"[proxy_setup] failed: {e}")
 
     message = MIMEMultipart()
     message["From"] = f"Jarvis Monitor <{sender_email}>"
@@ -113,4 +120,9 @@ def send_gmail_notification(to_email, subject, body_content):
 send_market_report = send_gmail_notification
 
 if __name__ == "__main__":
-    send_gmail_notification("troiamaribelcl57@gmail.com", "Jarvis Test", "这是一封测试邮件")
+    import os
+    test_email = os.environ.get("TEST_EMAIL")
+    if test_email:
+        send_gmail_notification(test_email, "Jarvis Test", "这是一封测试邮件")
+    else:
+        print("请设置 TEST_EMAIL 环境变量再运行测试")
